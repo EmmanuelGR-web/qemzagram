@@ -80,6 +80,42 @@ export const HelpIcon = () => (
     <path d="M9.500 9a2.500 2.500 0 1 1 3.500 2.300c-.7.400-1 1-1 1.700M12 17h.01" />
   </Icon>
 );
+/* Íconos de estado (se muestran grandes dentro de `.state-icon`). */
+export const MailIcon = () => (
+  <Icon>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <path d="m3.500 7 8.500 6 8.500-6" />
+  </Icon>
+);
+export const LockIcon = () => (
+  <Icon>
+    <rect x="4.500" y="10.500" width="15" height="10" rx="2.500" />
+    <path d="M8 10.500V7.500a4 4 0 0 1 8 0v3M12 14.500v2.500" />
+  </Icon>
+);
+export const CheckCircleIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m8 12.300 2.700 2.700L16 9.500" />
+  </Icon>
+);
+export const AlertIcon = () => (
+  <Icon>
+    <path d="M10.300 4.200 2.700 17.500A2 2 0 0 0 4.400 20.500h15.200a2 2 0 0 0 1.700-3L13.700 4.200a2 2 0 0 0-3.400 0Z" />
+    <path d="M12 9.500v4M12 17h.01" />
+  </Icon>
+);
+export const ClockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+export const SparkleIcon = () => (
+  <Icon>
+    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.300 6.300l2.400 2.400M15.300 15.300l2.400 2.400M17.700 6.300l-2.400 2.400M8.700 15.300l-2.400 2.400" />
+  </Icon>
+);
 export const CameraIcon = () => (
   <Icon>
     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" />

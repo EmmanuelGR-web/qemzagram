@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent } from 'react';
 import { PasswordField } from '@/components/PasswordField';
+import { LockIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 
 function ResetContent() {
@@ -36,8 +37,8 @@ function ResetContent() {
   if (done) {
     return (
       <div className="center-stack">
-        <div className="big-emoji" aria-hidden="true">
-          🔐
+        <div className="state-icon" aria-hidden="true">
+          <LockIcon />
         </div>
         <h2>Contraseña actualizada</h2>
         <p className="muted">Por seguridad cerramos todas tus sesiones. Iniciá sesión con tu nueva contraseña.</p>

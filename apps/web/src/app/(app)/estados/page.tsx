@@ -1,3 +1,5 @@
+import { SparkleIcon } from '@/components/icons';
+
 export const metadata = { title: 'Estados' };
 
 export default function StatusPage() {
@@ -5,8 +7,8 @@ export default function StatusPage() {
     <div className="page">
       <h1>Estados</h1>
       <div className="card center-stack">
-        <div className="big-emoji" aria-hidden="true">
-          ✨
+        <div className="state-icon" aria-hidden="true">
+          <SparkleIcon />
         </div>
         <h3>Muy pronto</h3>
         <p className="muted">

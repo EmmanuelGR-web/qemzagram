@@ -4,6 +4,7 @@ import { getPasswordIssues, registerSchema } from '@qemzagram/shared';
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { PasswordField } from '@/components/PasswordField';
+import { MailIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 
 export default function RegisterPage() {
@@ -42,8 +43,8 @@ export default function RegisterPage() {
   if (done) {
     return (
       <div className="center-stack">
-        <div className="big-emoji" aria-hidden="true">
-          ✉️
+        <div className="state-icon" aria-hidden="true">
+          <MailIcon />
         </div>
         <h2>Revisá tu correo</h2>
         <p className="muted">

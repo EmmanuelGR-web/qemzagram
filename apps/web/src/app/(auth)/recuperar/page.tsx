@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
+import { MailIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 
 export default function ForgotPasswordPage() {
@@ -27,8 +28,8 @@ export default function ForgotPasswordPage() {
   if (sent) {
     return (
       <div className="center-stack">
-        <div className="big-emoji" aria-hidden="true">
-          📬
+        <div className="state-icon" aria-hidden="true">
+          <MailIcon />
         </div>
         <h2>Revisá tu correo</h2>
         <p className="muted">Si ese correo tiene una cuenta, te enviamos un enlace para elegir una contraseña nueva. Vence en 1 hora.</p>

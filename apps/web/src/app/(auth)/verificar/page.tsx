@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { AlertIcon, CheckCircleIcon, ClockIcon } from '@/components/icons';
 import { api, errorMessage } from '@/lib/api';
 
 function VerifyContent() {
@@ -32,8 +33,8 @@ function VerifyContent() {
 
   return (
     <div className="center-stack">
-      <div className="big-emoji" aria-hidden="true">
-        {state === 'loading' ? '⏳' : state === 'ok' ? '✅' : '⚠️'}
+      <div className="state-icon" data-tone={state === 'error' ? 'error' : undefined} aria-hidden="true">
+        {state === 'loading' ? <ClockIcon /> : state === 'ok' ? <CheckCircleIcon /> : <AlertIcon />}
       </div>
       <h2>{state === 'loading' ? 'Verificando…' : state === 'ok' ? '¡Correo verificado!' : 'No pudimos verificar'}</h2>
       <p className="muted">{message}</p>
