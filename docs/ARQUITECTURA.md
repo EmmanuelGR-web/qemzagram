@@ -1,0 +1,70 @@
+# Arquitectura de Qemzagram
+
+## Visión general
+
+```
+ Navegador / PWA
+   │  (mismo origen)            WebSocket (ticket de 60 s)
+   ▼                                   │
+ Web · Next.js :3000 ──/api/*──► API · NestJS :4000 ◄────────┘
+                                       │
+                        ┌──────────────┼───────────────┐
+                        ▼              ▼               ▼
+                   PostgreSQL        Correo SMTP   Archivos (fotos)
+```
+
+- La **web** nunca habla con la API desde otro origen: Next reenvía `/api/*`. Así las cookies de sesión son *first-party* (`HttpOnly`, `SameSite=Strict`) y no hace falta abrir CORS.
+- El **tiempo real** usa un *ticket* de 60 segundos que se pide por HTTP; la cookie de sesión nunca viaja por el WebSocket.
+
+## Capas del backend (por módulo)
+
+```
+Controller  →  Service  →  Repository  →  Base de datos
+(HTTP, validación)  (reglas de negocio)  (consultas SQL)
+```
+
+| Capa | Responsabilidad | Ejemplo |
+|---|---|---|
+| Controller | Recibir la petición, validar con Zod, devolver la respuesta | `chats.controller.ts` |
+| Service | Reglas de negocio y autorización | `chats.service.ts` (¿es miembro? ¿está en la agenda? ¿grupo lleno?) |
+| Repository | Única capa que habla SQL | `conversations.repository.ts` |
+| Puertos | Abstracciones de servicios externos | `MailPort`, `RealtimePublisher` |
+
+## Cómo se aplica SOLID
+
+- **S — Responsabilidad única:** cada clase hace una cosa (`CryptoService` cifra, `AuditService` audita, `StorageService` procesa imágenes, `TokensService` firma tokens).
+- **O — Abierto/cerrado:** para agregar un tipo de mensaje o un proveedor de correo se agregan clases nuevas sin tocar las existentes.
+- **L — Sustitución de Liskov:** `SmtpMailService` y la implementación falsa de los tests son intercambiables bajo `MailPort`.
+- **I — Segregación de interfaces:** puertos pequeños y específicos (`MailPort` solo manda correos; `RealtimePublisher` solo publica eventos).
+- **D — Inversión de dependencias:** los servicios dependen de **abstracciones** (`MailPort`, `RealtimePublisher`, repositorios inyectados), no de nodemailer ni de Socket.IO. Esto permite probar todo sin servicios reales.
+
+## Código fuertemente tipado
+
+- TypeScript en modo `strict` en todo el proyecto.
+- `packages/shared`: tipos (DTO) y esquemas Zod **compartidos** entre API y web: el formulario del navegador y el servidor validan con las mismas reglas.
+- Drizzle ORM: el esquema de la base genera los tipos de las filas; una consulta mal escrita no compila.
+- Variables de entorno validadas y tipadas (`AppEnv`).
+
+## Modelo de datos
+
+| Tabla | Para qué |
+|---|---|
+| `users` | Cuenta: correo único, tag único, hash de contraseña, perfil, estado (`active`/`paused`/`banned`/`deleted`), rol (`user`/`support`), bloqueos |
+| `email_tokens` | Enlaces de verificación y de recuperación (solo hash, un uso, vencen) |
+| `sessions` | Refresh tokens rotativos (solo hash), con detección de reutilización |
+| `contacts` | Agenda: quién agregó a quién |
+| `conversations` / `conversation_members` | Chats 1 a 1 y grupos (máx. 10), con rol admin/miembro |
+| `messages` | Mensajes con el cuerpo **cifrado** |
+| `audit_log` | Eventos de seguridad |
+
+## Decisiones técnicas
+
+| Decisión | Motivo |
+|---|---|
+| **Drizzle ORM** en vez de Prisma | Tipado fuerte igual de estricto, SQL transparente, y no depende de motores binarios descargados en tiempo de instalación (más simple y reproducible). |
+| **PGlite** para tests y modo sin Docker | PostgreSQL real compilado a WebAssembly: las pruebas ejercitan SQL verdadero sin infraestructura. |
+| **Cookies HttpOnly** en lugar de `localStorage` | Un ataque XSS no puede leer los tokens. |
+| **Argon2id + pepper** | Estándar actual recomendado por OWASP para contraseñas. |
+| **Envío de mensajes por REST, entrega por WebSocket** | La ruta REST ya tiene validación, límites y autorización; el socket solo entrega. Menos superficie de ataque. |
+| **Chats solo con gente de la agenda** | Reduce spam y hostigamiento: nadie puede escribirte sin que alguien lo haya agregado primero con tu tag. |
+| **Pausar vs. dar de baja** | Pausa = reversible (se reactiva al iniciar sesión). Baja = anonimización irreversible de datos personales y liberación del tag. |
