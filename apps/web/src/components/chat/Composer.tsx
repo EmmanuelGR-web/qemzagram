@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
 import { formatBytes, formatDuration, kindForFile } from '@/lib/messages';
 import { useVoiceRecorder } from '@/lib/use-voice-recorder';
+import { CameraCapture, cameraSupported } from './CameraCapture';
 import { StickerPicker } from './StickerPicker';
 
 interface Props {
@@ -31,6 +32,7 @@ export function Composer({ conversationId, onSent }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [stickersOpen, setStickersOpen] = useState(false);
+  const [camera, setCamera] = useState<'photo' | 'video' | null>(null);
   const [pending, setPending] = useState<PendingFile | null>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -111,6 +113,13 @@ export function Composer({ conversationId, onSent }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recording, voice.seconds]);
 
+  /** Cámara dentro de la app; si el navegador no lo permite (p. ej. sin HTTPS), selector de archivos. */
+  function openCamera(mode: 'photo' | 'video') {
+    setMenuOpen(false);
+    if (cameraSupported()) setCamera(mode);
+    else (mode === 'photo' ? cameraInput : videoInput).current?.click();
+  }
+
   function closePreview() {
     if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
     setPending(null);
@@ -153,10 +162,10 @@ export function Composer({ conversationId, onSent }: Props) {
               </button>
               {menuOpen && (
                 <div className="attach-menu" role="menu">
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => cameraInput.current?.click()}>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => openCamera('photo')}>
                     <CameraIcon /> Cámara
                   </button>
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => videoInput.current?.click()}>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => openCamera('video')}>
                     <VideoIcon /> Video
                   </button>
                   <button type="button" role="menuitem" className="menu-item" onClick={() => galleryInput.current?.click()}>
@@ -213,6 +222,21 @@ export function Composer({ conversationId, onSent }: Props) {
         <input ref={documentInput} type="file" accept={DOCUMENT_ACCEPT} hidden onChange={(event) => { choose(event.target.files?.[0], 'file'); event.target.value = ''; }} />
       </form>
 
+      {camera && (
+        <CameraCapture
+          mode={camera}
+          onClose={() => setCamera(null)}
+          onCapture={(file) => {
+            setCamera(null);
+            choose(file);
+          }}
+          onFallback={() => {
+            const mode = camera;
+            setCamera(null);
+            (mode === 'photo' ? cameraInput : videoInput).current?.click();
+          }}
+        />
+      )}
       {pending && <AttachmentPreview pending={pending} onCancel={closePreview} onSend={sendFile} />}
     </>
   );

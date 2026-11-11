@@ -390,6 +390,21 @@ html[data-theme='dark'] .chat-item[aria-current='page'] { background: var(--red-
   .composer-btn { width: 40px; height: 40px; }
   .sticker-img { width: 120px; height: 120px; }
 }
+/* cámara dentro de la app */
+.camera { position: fixed; inset: 0; z-index: 130; display: flex; flex-direction: column; background: #000; color: #fff; animation: fade 0.15s; }
+.camera-view { flex: 1; min-height: 0; width: 100%; object-fit: contain; background: #000; }
+.camera-view[data-mirror='true'] { transform: scaleX(-1); }
+.camera-close { position: absolute; top: calc(0.75rem + env(safe-area-inset-top)); right: 0.75rem; z-index: 2; color: #fff; background: rgba(255, 255, 255, 0.14); }
+.camera-close:hover { background: rgba(255, 255, 255, 0.26); }
+.camera-controls { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 1.25rem 1rem calc(1.25rem + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0, 0, 0, 0.6)); }
+.camera-side { display: flex; justify-content: flex-end; }
+.camera-shutter { width: 74px; height: 74px; border-radius: 50%; border: 5px solid #fff; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.25); transition: transform 0.1s; }
+.camera-shutter:active:not(:disabled) { transform: scale(0.92); }
+.camera-shutter:disabled { opacity: 0.4; }
+.camera-shutter[data-video='true'] { background: var(--red-500); }
+.camera-shutter[data-recording='true'] { border-radius: 22px; background: var(--red-600); }
+.camera-timer { position: absolute; top: -2.2rem; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.8rem; border-radius: 999px; background: rgba(0, 0, 0, 0.55); font-weight: 700; font-variant-numeric: tabular-nums; }
+.camera-error { margin: auto; max-width: 360px; padding: 1.5rem; text-align: center; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
 .lightbox { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1rem; background: rgba(10, 4, 6, 0.92); animation: fade 0.15s; cursor: zoom-out; }
 .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; cursor: default; }
 .lightbox-close { position: absolute; top: 0.75rem; right: 0.75rem; color: #fff; background: rgba(255, 255, 255, 0.12); }
