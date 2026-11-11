@@ -12,6 +12,7 @@ import { loadEnv } from '../../src/config/env';
 import { DB, type Database } from '../../src/database/database.types';
 import { MailPort } from '../../src/mail/mail.port';
 import { AntivirusPort, AntivirusUnavailableError, type ScanResult } from '../../src/media/antivirus.port';
+import { MediaRejectedError, MediaTranscoder, type TranscodeResult, type TranscodeTarget } from '../../src/media/transcoder.port';
 
 export const ORIGIN = 'http://localhost:3000';
 export const STRONG_PASSWORD = 'Qz!Segura2026-ok';
@@ -61,10 +62,27 @@ export class FakeAntivirus extends AntivirusPort {
   }
 }
 
+/** Conversor falso: no ejecuta ffmpeg. "MUY-LARGO" en el archivo simula un audio/video demasiado largo. */
+export class FakeTranscoder extends MediaTranscoder {
+  available = true;
+  calls: TranscodeTarget[] = [];
+  async isAvailable(): Promise<boolean> {
+    return this.available;
+  }
+  async transcode(input: Buffer, target: TranscodeTarget, maxSeconds: number): Promise<TranscodeResult> {
+    this.calls.push(target);
+    if (input.includes('MUY-LARGO')) throw new MediaRejectedError('MEDIA_TOO_LONG', `La duración máxima es de ${maxSeconds} segundos`);
+    return target === 'voice'
+      ? { data: Buffer.from('audio-convertido'), mimeType: 'audio/mp4', durationMs: 4200, width: null, height: null }
+      : { data: Buffer.from('video-convertido'), mimeType: 'video/mp4', durationMs: 9000, width: 640, height: 360 };
+  }
+}
+
 export interface TestContext {
   app: NestExpressApplication;
   mail: FakeMail;
   antivirus: FakeAntivirus;
+  transcoder: FakeTranscoder;
   db: Database;
   close: () => Promise<void>;
 }
@@ -84,16 +102,19 @@ export async function createTestApp(): Promise<TestContext> {
   });
   const mail = new FakeMail();
   const antivirus = new FakeAntivirus();
+  const transcoder = new FakeTranscoder();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MailPort)
     .useValue(mail)
     .overrideProvider(AntivirusPort)
     .useValue(antivirus)
+    .overrideProvider(MediaTranscoder)
+    .useValue(transcoder)
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app, loadEnv());
   await app.init();
-  return { app, mail, antivirus, db: app.get(DB), close: () => app.close() };
+  return { app, mail, antivirus, transcoder, db: app.get(DB), close: () => app.close() };
 }
 
 export interface TestUser {

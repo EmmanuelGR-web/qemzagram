@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
-import { ALLOWED_FILE_EXTENSIONS, FILE_NAME_MAX_LENGTH, UPLOAD_MAX_BYTES, type UploadKind } from '@qemzagram/shared';
+import { ALLOWED_FILE_EXTENSIONS, FILE_NAME_MAX_LENGTH, UPLOAD_MAX_BYTES, VOICE_MAX_SECONDS, type UploadKind } from '@qemzagram/shared';
 import sharp from 'sharp';
 import { AuditService } from '../common/audit.service';
 import { AntivirusPort, AntivirusUnavailableError } from './antivirus.port';
 import { sniff, type SniffedType } from './content-sniffer';
+import { MediaRejectedError, MediaTranscoder, type TranscodeTarget } from './transcoder.port';
 
 /** Resultado listo para guardar: el contenido ya fue validado, analizado y re-codificado. */
 export interface ProcessedMedia {
@@ -83,6 +84,7 @@ export function sanitizeFileName(raw: string): string {
 export class MediaProcessor {
   constructor(
     private readonly antivirus: AntivirusPort,
+    private readonly transcoder: MediaTranscoder,
     private readonly audit: AuditService,
   ) {}
 
@@ -102,6 +104,9 @@ export class MediaProcessor {
         return this.processImage(input.buffer);
       case 'file':
         return this.processDocument(input, type);
+      case 'audio':
+        if (type.family !== 'audio-video') throw rejected('INVALID_MEDIA', 'El archivo no es un audio válido');
+        return this.transcode(input.buffer, 'voice', VOICE_MAX_SECONDS);
       default:
         throw rejected('UNSUPPORTED_KIND', 'Ese tipo de adjunto todavía no está disponible');
     }
@@ -121,6 +126,20 @@ export class MediaProcessor {
     if (!result.clean) {
       await this.audit.log('upload.malware_blocked', { userId, meta: { kind, signature: result.signature } });
       throw rejected('MALWARE_DETECTED', 'El archivo fue bloqueado por el antivirus');
+    }
+  }
+
+  /** Audio y video SIEMPRE se convierten (quita metadatos como el GPS). Sin ffmpeg, no se aceptan. */
+  private async transcode(buffer: Buffer, target: TranscodeTarget, maxSeconds: number): Promise<ProcessedMedia> {
+    if (!(await this.transcoder.isAvailable())) {
+      throw new ServiceUnavailableException({ code: 'MEDIA_UNAVAILABLE', message: 'Las notas de voz y los videos no están disponibles en este momento' });
+    }
+    try {
+      const result = await this.transcoder.transcode(buffer, target, maxSeconds);
+      return { data: result.data, mimeType: result.mimeType, name: null, width: result.width, height: result.height, durationMs: result.durationMs };
+    } catch (error) {
+      if (error instanceof MediaRejectedError) throw rejected(error.code, error.message);
+      throw error;
     }
   }
 

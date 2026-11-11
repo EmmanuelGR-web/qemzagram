@@ -1,11 +1,12 @@
 'use client';
 
-import { ALLOWED_FILE_EXTENSIONS, MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, type MessageDto, type UploadKind } from '@qemzagram/shared';
+import { ALLOWED_FILE_EXTENSIONS, MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, VOICE_MAX_SECONDS, type MessageDto, type UploadKind } from '@qemzagram/shared';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AttachIcon, CameraIcon, FileIcon, ImageIcon, SendIcon } from '@/components/icons';
+import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, TrashIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
-import { formatBytes, kindForFile } from '@/lib/messages';
+import { formatBytes, formatDuration, kindForFile } from '@/lib/messages';
+import { useVoiceRecorder } from '@/lib/use-voice-recorder';
 
 interface Props {
   conversationId: string;
@@ -32,6 +33,8 @@ export function Composer({ conversationId, onSent }: Props) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const documentInput = useRef<HTMLInputElement>(null);
+  const voice = useVoiceRecorder();
+  const recording = voice.state === 'recording';
 
   async function sendText(event?: FormEvent) {
     event?.preventDefault();
@@ -81,6 +84,30 @@ export function Composer({ conversationId, onSent }: Props) {
     closePreview();
   }
 
+  /** Termina la grabación y la envía como nota de voz (el servidor la convierte y le quita metadatos). */
+  async function sendVoice() {
+    const result = await voice.stop();
+    if (!result) return;
+    setSending(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('kind', 'audio');
+      form.append('file', new File([result.blob], result.fileName, { type: result.blob.type }));
+      onSent(await api<MessageDto>(`/chats/${conversationId}/attachments`, { form }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // Al llegar a la duración máxima, la nota se envía sola.
+  useEffect(() => {
+    if (recording && voice.seconds >= VOICE_MAX_SECONDS) void sendVoice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, voice.seconds]);
+
   function closePreview() {
     if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
     setPending(null);
@@ -88,48 +115,71 @@ export function Composer({ conversationId, onSent }: Props) {
 
   return (
     <>
-      {error && (
+      {(error ?? voice.error) && (
         <p className="alert alert-error composer-error" role="alert">
-          {error}
+          {error ?? voice.error}
         </p>
       )}
       <form className="composer" onSubmit={sendText}>
-        <div className="attach-wrap">
-          <button
-            type="button"
-            className="icon-btn composer-btn"
-            aria-label="Adjuntar"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <AttachIcon />
-          </button>
-          {menuOpen && (
-            <div className="attach-menu" role="menu">
-              <button type="button" role="menuitem" className="menu-item" onClick={() => cameraInput.current?.click()}>
-                <CameraIcon /> Cámara
+        {recording ? (
+          <div className="recording-bar" role="status">
+            <button type="button" className="icon-btn composer-btn" onClick={voice.cancel} aria-label="Descartar grabación">
+              <TrashIcon />
+            </button>
+            <span className="recording-dot" aria-hidden="true" />
+            <span className="recording-time">{formatDuration(voice.seconds * 1000)}</span>
+            <span className="muted small">Grabando… (máx. {VOICE_MAX_SECONDS / 60} min)</span>
+            <button type="button" className="send-btn" onClick={() => void sendVoice()} aria-label="Enviar nota de voz">
+              <SendIcon />
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="attach-wrap">
+              <button
+                type="button"
+                className="icon-btn composer-btn"
+                aria-label="Adjuntar"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <AttachIcon />
               </button>
-              <button type="button" role="menuitem" className="menu-item" onClick={() => galleryInput.current?.click()}>
-                <ImageIcon /> Galería
-              </button>
-              <button type="button" role="menuitem" className="menu-item" onClick={() => documentInput.current?.click()}>
-                <FileIcon /> Documento
-              </button>
+              {menuOpen && (
+                <div className="attach-menu" role="menu">
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => cameraInput.current?.click()}>
+                    <CameraIcon /> Cámara
+                  </button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => galleryInput.current?.click()}>
+                    <ImageIcon /> Galería
+                  </button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => documentInput.current?.click()}>
+                    <FileIcon /> Documento
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Escribí un mensaje"
-          rows={1}
-          maxLength={MESSAGE_MAX_LENGTH}
-          aria-label="Mensaje"
-        />
-        <button className="send-btn" disabled={sending || draft.trim().length === 0} aria-label="Enviar">
-          <SendIcon />
-        </button>
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Escribí un mensaje"
+              rows={1}
+              maxLength={MESSAGE_MAX_LENGTH}
+              aria-label="Mensaje"
+            />
+            {/* Sin texto, el botón graba una nota de voz (como en las apps de mensajería). */}
+            {draft.trim().length > 0 ? (
+              <button className="send-btn" disabled={sending} aria-label="Enviar">
+                <SendIcon />
+              </button>
+            ) : (
+              <button type="button" className="send-btn" onClick={() => void voice.start()} disabled={sending} aria-label="Grabar nota de voz">
+                <MicIcon />
+              </button>
+            )}
+          </>
+        )}
 
         {/* "capture" abre directamente la cámara en el celular; en la computadora abre el selector de archivos. */}
         <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />

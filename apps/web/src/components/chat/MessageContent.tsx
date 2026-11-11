@@ -2,9 +2,9 @@
 
 import type { AttachmentDto, MessageDto } from '@qemzagram/shared';
 import { useEffect, useState } from 'react';
-import { CloseIcon, DownloadIcon, FileIcon } from '@/components/icons';
+import { CloseIcon, DownloadIcon, FileIcon, MicIcon } from '@/components/icons';
 import { mediaUrl } from '@/lib/api';
-import { formatBytes } from '@/lib/messages';
+import { formatBytes, formatDuration } from '@/lib/messages';
 
 interface Props {
   message: MessageDto;
@@ -30,6 +30,14 @@ function AttachmentView({ attachment, onMediaError }: { attachment: AttachmentDt
       return <ImageAttachment src={src} attachment={attachment} onMediaError={onMediaError} />;
     case 'file':
       return <FileAttachment src={src} attachment={attachment} />;
+    case 'audio':
+      return (
+        <span className="voice-note">
+          <MicIcon />
+          {/* Reproductor nativo: accesible y con soporte de adelantar (el servidor sirve rangos). */}
+          <audio src={src} controls preload="metadata" onError={onMediaError} aria-label={`Nota de voz de ${formatDuration(attachment.durationMs)}`} />
+        </span>
+      );
     default:
       return <span className="bubble-text muted">Adjunto no compatible con esta versión</span>;
   }
