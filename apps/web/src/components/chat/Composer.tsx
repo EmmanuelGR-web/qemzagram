@@ -1,8 +1,8 @@
 'use client';
 
-import { MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, type MessageDto, type UploadKind } from '@qemzagram/shared';
+import { ALLOWED_FILE_EXTENSIONS, MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, type MessageDto, type UploadKind } from '@qemzagram/shared';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AttachIcon, CameraIcon, ImageIcon, SendIcon } from '@/components/icons';
+import { AttachIcon, CameraIcon, FileIcon, ImageIcon, SendIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
 import { formatBytes, kindForFile } from '@/lib/messages';
@@ -11,6 +11,10 @@ interface Props {
   conversationId: string;
   onSent: (message: MessageDto) => void;
 }
+
+const DOCUMENT_ACCEPT = ALLOWED_FILE_EXTENSIONS.map((extension) => `.${extension}`).join(',');
+
+const PREVIEW_TITLES: Record<UploadKind, string> = { image: 'Enviar foto', video: 'Enviar video', audio: 'Enviar audio', file: 'Enviar documento' };
 
 interface PendingFile {
   file: File;
@@ -27,6 +31,7 @@ export function Composer({ conversationId, onSent }: Props) {
   const [pending, setPending] = useState<PendingFile | null>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
+  const documentInput = useRef<HTMLInputElement>(null);
 
   async function sendText(event?: FormEvent) {
     event?.preventDefault();
@@ -52,10 +57,12 @@ export function Composer({ conversationId, onSent }: Props) {
   }
 
   /** Se eligió un archivo: se valida el tamaño acá (el servidor lo vuelve a validar) y se muestra la vista previa. */
-  function choose(file: File | undefined) {
+  function choose(file: File | undefined, forced?: UploadKind) {
     setMenuOpen(false);
     if (!file) return;
-    const kind = kindForFile(file);
+    const detected = kindForFile(file);
+    // Desde "Documento" una foto o un video se mandan igual como foto/video (se ven mejor en el chat).
+    const kind = forced === 'file' && detected !== 'file' ? detected : (forced ?? detected);
     if (file.size > UPLOAD_MAX_BYTES[kind]) {
       setError(`El archivo pesa ${formatBytes(file.size)}. El máximo es ${formatBytes(UPLOAD_MAX_BYTES[kind])}.`);
       return;
@@ -105,6 +112,9 @@ export function Composer({ conversationId, onSent }: Props) {
               <button type="button" role="menuitem" className="menu-item" onClick={() => galleryInput.current?.click()}>
                 <ImageIcon /> Galería
               </button>
+              <button type="button" role="menuitem" className="menu-item" onClick={() => documentInput.current?.click()}>
+                <FileIcon /> Documento
+              </button>
             </div>
           )}
         </div>
@@ -124,6 +134,7 @@ export function Composer({ conversationId, onSent }: Props) {
         {/* "capture" abre directamente la cámara en el celular; en la computadora abre el selector de archivos. */}
         <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />
         <input ref={galleryInput} type="file" accept="image/*" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />
+        <input ref={documentInput} type="file" accept={DOCUMENT_ACCEPT} hidden onChange={(event) => { choose(event.target.files?.[0], 'file'); event.target.value = ''; }} />
       </form>
 
       {pending && <AttachmentPreview pending={pending} onCancel={closePreview} onSend={sendFile} />}
@@ -153,9 +164,18 @@ function AttachmentPreview(props: { pending: PendingFile; onCancel: () => void; 
   }
 
   return (
-    <Modal title="Enviar foto" onClose={busy ? () => undefined : onCancel}>
+    <Modal title={PREVIEW_TITLES[pending.kind]} onClose={busy ? () => undefined : onCancel}>
       <form onSubmit={submit} className="form">
-        {pending.previewUrl && <img className="attach-preview" src={pending.previewUrl} alt="Vista previa" />}
+        {pending.kind === 'image' && pending.previewUrl && <img className="attach-preview" src={pending.previewUrl} alt="Vista previa" />}
+        {pending.kind === 'file' && (
+          <div className="file-chip">
+            <span className="file-chip-icon"><FileIcon /></span>
+            <span className="file-chip-body">
+              <strong>{pending.file.name}</strong>
+              <small>{formatBytes(pending.file.size)}</small>
+            </span>
+          </div>
+        )}
         <input value={caption} onChange={(event) => setCaption(event.target.value)} placeholder="Agregá un comentario (opcional)" maxLength={MESSAGE_MAX_LENGTH} aria-label="Comentario" />
         {error && <p className="alert alert-error">{error}</p>}
         <div className="button-row">

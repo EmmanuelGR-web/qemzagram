@@ -2,8 +2,9 @@
 
 import type { AttachmentDto, MessageDto } from '@qemzagram/shared';
 import { useEffect, useState } from 'react';
-import { CloseIcon } from '@/components/icons';
+import { CloseIcon, DownloadIcon, FileIcon } from '@/components/icons';
 import { mediaUrl } from '@/lib/api';
+import { formatBytes } from '@/lib/messages';
 
 interface Props {
   message: MessageDto;
@@ -27,6 +28,8 @@ function AttachmentView({ attachment, onMediaError }: { attachment: AttachmentDt
   switch (attachment.kind) {
     case 'image':
       return <ImageAttachment src={src} attachment={attachment} onMediaError={onMediaError} />;
+    case 'file':
+      return <FileAttachment src={src} attachment={attachment} />;
     default:
       return <span className="bubble-text muted">Adjunto no compatible con esta versión</span>;
   }
@@ -49,6 +52,24 @@ function ImageAttachment({ src, attachment, onMediaError }: { src: string; attac
       </button>
       {open && <Lightbox src={src} onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/** Documento: tarjeta con nombre y tamaño; el servidor fuerza la descarga (nunca se abre dentro de la app). */
+function FileAttachment({ src, attachment }: { src: string; attachment: AttachmentDto }) {
+  const extension = attachment.name?.split('.').pop()?.toUpperCase() ?? '';
+  return (
+    <a className="file-chip file-chip-link" href={src} download={attachment.name ?? true} rel="noopener">
+      <span className="file-chip-icon"><FileIcon /></span>
+      <span className="file-chip-body">
+        <strong>{attachment.name ?? 'Archivo'}</strong>
+        <small>
+          {extension && `${extension} · `}
+          {formatBytes(attachment.size)}
+        </small>
+      </span>
+      <span className="file-chip-action" aria-label="Descargar"><DownloadIcon /></span>
+    </a>
   );
 }
 

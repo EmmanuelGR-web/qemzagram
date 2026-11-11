@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
-import { UPLOAD_MAX_BYTES, type UploadKind } from '@qemzagram/shared';
+import { ALLOWED_FILE_EXTENSIONS, FILE_NAME_MAX_LENGTH, UPLOAD_MAX_BYTES, type UploadKind } from '@qemzagram/shared';
 import sharp from 'sharp';
 import { AuditService } from '../common/audit.service';
 import { AntivirusPort, AntivirusUnavailableError } from './antivirus.port';
-import { sniff } from './content-sniffer';
+import { sniff, type SniffedType } from './content-sniffer';
 
 /** Resultado listo para guardar: el contenido ya fue validado, analizado y re-codificado. */
 export interface ProcessedMedia {
@@ -26,6 +26,51 @@ const IMAGE_MAX_SIDE = 2048;
 const IMAGE_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif']);
 
 const rejected = (code: string, message: string) => new BadRequestException({ code, message });
+
+interface DocumentRule {
+  mimeType: string;
+  matches: (type: SniffedType, data: Buffer) => boolean;
+}
+
+const isPdf = (type: SniffedType) => type.format === 'pdf';
+const isText = (type: SniffedType) => type.family === 'text';
+const isZip = (type: SniffedType) => type.format === 'zip';
+/** Office moderno (docx/xlsx/pptx): ZIP con "[Content_Types].xml" y SIN proyecto de macros VBA. */
+const isOoxml = (type: SniffedType, data: Buffer) =>
+  isZip(type) && data.includes('[Content_Types].xml') && !data.includes('vbaProject.bin');
+/** OpenDocument (odt/ods/odp): ZIP cuyo archivo "mimetype" declara el tipo correspondiente, sin macros. */
+const isOdf = (kind: string) => (type: SniffedType, data: Buffer) =>
+  isZip(type) && data.includes(`application/vnd.oasis.opendocument.${kind}`) && !data.includes('Basic/');
+
+const DOCUMENT_RULES: Record<string, DocumentRule> = {
+  pdf: { mimeType: 'application/pdf', matches: isPdf },
+  docx: { mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', matches: isOoxml },
+  xlsx: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', matches: isOoxml },
+  pptx: { mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', matches: isOoxml },
+  odt: { mimeType: 'application/vnd.oasis.opendocument.text', matches: isOdf('text') },
+  ods: { mimeType: 'application/vnd.oasis.opendocument.spreadsheet', matches: isOdf('spreadsheet') },
+  odp: { mimeType: 'application/vnd.oasis.opendocument.presentation', matches: isOdf('presentation') },
+  zip: { mimeType: 'application/zip', matches: isZip },
+  txt: { mimeType: 'text/plain; charset=utf-8', matches: isText },
+  csv: { mimeType: 'text/csv; charset=utf-8', matches: isText },
+};
+
+/**
+ * Nombre visible seguro: sin carpetas ("../"), sin caracteres de control ni de dirección de texto
+ * (que permiten disfrazar "gpj.exe" como "exe.jpg"), recortado y nunca vacío.
+ */
+export function sanitizeFileName(raw: string): string {
+  const base = raw.normalize('NFC').split(/[\\/]/).pop() ?? '';
+  const clean = base
+    .replace(/[\u0000-\u001f\u007f‎‏‪-‮⁦-⁩]/g, '')
+    .replace(/^[.\s]+/, '')
+    .trim();
+  if (!clean) return 'archivo';
+  if (clean.length <= FILE_NAME_MAX_LENGTH) return clean;
+  const dot = clean.lastIndexOf('.');
+  const extension = dot > 0 && clean.length - dot <= 10 ? clean.slice(dot) : '';
+  return clean.slice(0, FILE_NAME_MAX_LENGTH - extension.length) + extension;
+}
 
 /**
  * Pipeline de seguridad de TODA subida al chat:
@@ -55,6 +100,8 @@ export class MediaProcessor {
       case 'image':
         if (type.family !== 'image') throw rejected('INVALID_IMAGE', 'El archivo no es una imagen válida');
         return this.processImage(input.buffer);
+      case 'file':
+        return this.processDocument(input, type);
       default:
         throw rejected('UNSUPPORTED_KIND', 'Ese tipo de adjunto todavía no está disponible');
     }
@@ -75,6 +122,19 @@ export class MediaProcessor {
       await this.audit.log('upload.malware_blocked', { userId, meta: { kind, signature: result.signature } });
       throw rejected('MALWARE_DETECTED', 'El archivo fue bloqueado por el antivirus');
     }
+  }
+
+  /**
+   * Documentos: no se pueden re-codificar sin romperlos, así que se exige que la extensión
+   * (de una lista cerrada) coincida con el CONTENIDO real, se bloquean macros y se fuerzan a descarga.
+   */
+  processDocument(input: UploadedInput, type: SniffedType): ProcessedMedia {
+    const name = sanitizeFileName(input.originalName);
+    const extension = name.includes('.') ? (name.split('.').pop() ?? '').toLowerCase() : '';
+    const rule = DOCUMENT_RULES[extension];
+    if (!rule) throw rejected('UNSUPPORTED_FILE', `Solo se permiten documentos: ${ALLOWED_FILE_EXTENSIONS.join(', ')}`);
+    if (!rule.matches(type, input.buffer)) throw rejected('FILE_MISMATCH', 'El contenido del archivo no coincide con su extensión');
+    return { data: input.buffer, mimeType: rule.mimeType, name, width: null, height: null, durationMs: null };
   }
 
   /** Re-codifica a WebP (sin metadatos), corrige la orientación y limita el tamaño. Conserva animaciones. */
