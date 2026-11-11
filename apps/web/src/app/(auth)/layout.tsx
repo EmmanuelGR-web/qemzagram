@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <main className="auth-page">
       <aside className="auth-hero" aria-hidden="true">
         <div className="auth-hero-inner">
-          <LogoMark size={120} variant="plain" />
+          <LogoMark size={120} variant="white" />
           <h1>
             Qemza<span>gram</span>
           </h1>

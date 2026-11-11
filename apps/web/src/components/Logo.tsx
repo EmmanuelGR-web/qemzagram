@@ -1,36 +1,49 @@
 import type { SVGProps } from 'react';
 
+export const BRAND_RED = '#C8102E';
+
 /**
- * Isotipo de Qemzagram: contorno de burbuja de chat que forma una "Q", con un anillo interior,
- * tres puntos y la cola de la Q uniéndose al contorno.
- * - `tile`: ícono de app (fondo rojo con esquinas redondeadas). Para fondos claros.
- * - `plain`: solo el trazo blanco. Para fondos rojos u oscuros.
+ * Trazado del isotipo oficial (medido sobre el logotipo original de 1600×1600 px).
+ * Burbuja de chat que forma una "Q": anillo exterior con colita, anillo interior con tres puntos
+ * y la cola de la Q que se une al anillo exterior.
  */
-export function LogoMark({ size = 40, variant = 'tile', ...props }: { size?: number; variant?: 'tile' | 'plain' } & SVGProps<SVGSVGElement>) {
+function MarkShapes({ color }: { color: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Qemzagram" {...props}>
-      <defs>
-        <radialGradient id="qz-logo-bg" cx="25%" cy="20%" r="95%">
-          <stop offset="0" stopColor="#d8213a" />
-          <stop offset="0.55" stopColor="#a5102a" />
-          <stop offset="1" stopColor="#5c0713" />
-        </radialGradient>
-        <linearGradient id="qz-logo-ink" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffffff" />
-          <stop offset="1" stopColor="#ffe3e7" />
-        </linearGradient>
-      </defs>
-      {variant === 'tile' && <rect width="100" height="100" rx="22" fill="url(#qz-logo-bg)" />}
-      <g fill="none" stroke="url(#qz-logo-ink)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M44.5 79.6A34 34 0 1 0 31.6 75.3L22.5 88.5Z" />
-        <circle cx="54" cy="46" r="16" />
-        <path d="M58.5 61.6C61.5 71 70.5 73.5 78.2 65.8" />
+    <>
+      <g fill="none" stroke={color} strokeWidth="90" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M617 1200A528 528 0 1 0 392.9 1042.1L512 1440Z" />
+        <circle cx="800" cy="704" r="288" />
+        <path d="M784 880C890 880 1030 925 1110 1080" />
       </g>
-      <g fill="url(#qz-logo-ink)">
-        <circle cx="46.5" cy="46" r="3.1" />
-        <circle cx="54" cy="46" r="3.1" />
-        <circle cx="61.5" cy="46" r="3.1" />
+      <g fill={color}>
+        <circle cx="624" cy="688" r="48" />
+        <circle cx="800" cy="688" r="48" />
+        <circle cx="976" cy="688" r="48" />
       </g>
+    </>
+  );
+}
+
+/**
+ * Isotipo de Qemzagram.
+ * - `color`: Q roja sin fondo (fondos claros).
+ * - `white`: Q blanca sin fondo (fondos rojos u oscuros).
+ * - `tile`: ícono de app (Q blanca sobre cuadrado rojo redondeado).
+ */
+export function LogoMark({ size = 40, variant = 'color', ...props }: { size?: number; variant?: 'color' | 'white' | 'tile' } & SVGProps<SVGSVGElement>) {
+  if (variant === 'tile') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 1600 1600" role="img" aria-label="Qemzagram" {...props}>
+        <rect width="1600" height="1600" rx="360" fill={BRAND_RED} />
+        <g transform="translate(800 800) scale(0.86) translate(-798.5 -808)">
+          <MarkShapes color="#FFFFFF" />
+        </g>
+      </svg>
+    );
+  }
+  return (
+    <svg width={size} height={size} viewBox="88.5 98 1420 1420" role="img" aria-label="Qemzagram" {...props}>
+      <MarkShapes color={variant === 'white' ? '#FFFFFF' : BRAND_RED} />
     </svg>
   );
 }
