@@ -1,0 +1,100 @@
+import 'reflect-metadata';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { Test } from '@nestjs/testing';
+import { randomBytes } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import request from 'supertest';
+import { AppModule } from '../../src/app.module';
+import { configureApp } from '../../src/app.setup';
+import { loadEnv } from '../../src/config/env';
+import { DB, type Database } from '../../src/database/database.types';
+import { MailPort } from '../../src/mail/mail.port';
+
+export const ORIGIN = 'http://localhost:3000';
+export const STRONG_PASSWORD = 'Qz!Segura2026-ok';
+
+/** Correo falso: guarda lo "enviado" para poder leer los tokens en los tests. */
+export class FakeMail extends MailPort {
+  verifications: { to: string; token: string }[] = [];
+  resets: { to: string; token: string }[] = [];
+  accountExists: string[] = [];
+  passwordChanged: string[] = [];
+
+  async sendVerification(to: string, _name: string, token: string): Promise<void> {
+    this.verifications.push({ to, token });
+  }
+  async sendAccountAlreadyExists(to: string): Promise<void> {
+    this.accountExists.push(to);
+  }
+  async sendPasswordReset(to: string, _name: string, token: string): Promise<void> {
+    this.resets.push({ to, token });
+  }
+  async sendPasswordChanged(to: string): Promise<void> {
+    this.passwordChanged.push(to);
+  }
+  lastVerification(to: string): string {
+    const found = [...this.verifications].reverse().find((item) => item.to === to);
+    if (!found) throw new Error(`No hay verificación para ${to}`);
+    return found.token;
+  }
+  lastReset(to: string): string {
+    const found = [...this.resets].reverse().find((item) => item.to === to);
+    if (!found) throw new Error(`No hay reset para ${to}`);
+    return found.token;
+  }
+}
+
+export interface TestContext {
+  app: NestExpressApplication;
+  mail: FakeMail;
+  db: Database;
+  close: () => Promise<void>;
+}
+
+export async function createTestApp(): Promise<TestContext> {
+  Object.assign(process.env, {
+    NODE_ENV: 'test',
+    DATABASE_URL: 'pglite://memory',
+    WEB_ORIGIN: ORIGIN,
+    JWT_ACCESS_SECRET: randomBytes(32).toString('hex'),
+    JWT_TICKET_SECRET: randomBytes(32).toString('hex'),
+    PASSWORD_PEPPER: randomBytes(16).toString('hex'),
+    MESSAGE_ENC_KEY: randomBytes(32).toString('base64'),
+    UPLOAD_DIR: mkdtempSync(join(tmpdir(), 'qz-uploads-')),
+    RUN_MIGRATIONS: 'true',
+  });
+  const mail = new FakeMail();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MailPort).useValue(mail).compile();
+  const app = moduleRef.createNestApplication<NestExpressApplication>();
+  configureApp(app, loadEnv());
+  await app.init();
+  return { app, mail, db: app.get(DB), close: () => app.close() };
+}
+
+export interface TestUser {
+  tag: string;
+  email: string;
+  password: string;
+  id: string;
+  agent: ReturnType<typeof request.agent>;
+}
+
+/** Registra, verifica el correo e inicia sesión. Devuelve un cliente HTTP con la sesión abierta. */
+export async function signUp(ctx: TestContext, tag: string, password = STRONG_PASSWORD): Promise<TestUser> {
+  const email = `${tag}@example.com`;
+  const server = ctx.app.getHttpServer();
+  await request(server).post('/auth/register').set('Origin', ORIGIN).send({ email, tag, password }).expect(202);
+  await request(server).post('/auth/verify-email').set('Origin', ORIGIN).send({ token: ctx.mail.lastVerification(email) }).expect(200);
+  const agent = request.agent(server).set('Origin', ORIGIN);
+  const login = await agent.post('/auth/login').send({ identifier: tag, password }).expect(200);
+  return { tag, email, password, id: (login.body as { user: { id: string } }).user.id, agent };
+}
+
+/** Normaliza la cabecera Set-Cookie (string o lista) a una lista. */
+export function setCookies(response: { headers: Record<string, unknown> }): string[] {
+  const value = response.headers['set-cookie'];
+  if (Array.isArray(value)) return value as string[];
+  return typeof value === 'string' ? [value] : [];
+}
