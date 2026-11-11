@@ -45,14 +45,14 @@ export function ChatsProvider({ children }: { children: ReactNode }) {
   useRealtimeEvent('chat:created', upsert);
   useRealtimeEvent('chat:updated', upsert);
   useRealtimeEvent('chat:message', (message: MessageDto) => {
-    setConversations((current) => {
-      const target = current.find((item) => item.id === message.conversationId);
-      if (!target) {
-        void reload();
-        return current;
-      }
-      return sortByActivity(current.map((item) => (item.id === target.id ? { ...item, lastMessage: message } : item)));
-    });
+    // La decisión se toma afuera del "updater": React puede ejecutarlo dos veces y no debe tener efectos (como pedir la lista).
+    if (!conversations.some((item) => item.id === message.conversationId)) {
+      void reload();
+      return;
+    }
+    setConversations((current) =>
+      sortByActivity(current.map((item) => (item.id === message.conversationId ? { ...item, lastMessage: message } : item))),
+    );
   });
 
   const value = useMemo(() => ({ conversations, loading, reload, upsert, remove }), [conversations, loading, reload, upsert, remove]);
