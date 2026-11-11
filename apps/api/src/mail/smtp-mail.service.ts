@@ -52,14 +52,19 @@ export class SmtpMailService extends MailPort {
         this.logger.error('SMTP_HOST no está configurado: no se puede enviar correo en producción.');
         return;
       }
-      this.logger.warn(`[CORREO SIMULADO] Para: ${to} | Asunto: ${content.subject}${devLink ? ` | Enlace: ${devLink}` : ''}`);
+      this.logger.warn(`[CORREO SIMULADO] Para: ${maskEmail(to)} | Asunto: ${content.subject}${devLink ? ` | Enlace: ${devLink}` : ''}`);
       return;
     }
     try {
       await this.transporter.sendMail({ from: this.env.MAIL_FROM, to, subject: content.subject, text: content.text, html: content.html });
     } catch (error) {
       // No se propaga: evita revelar por timing/errores si un correo existe. Queda en el log del servidor.
-      this.logger.error(`Fallo al enviar correo a ${to.replace(/(.).+(@.+)/, '$1***$2')}: ${(error as Error).message}`);
+      this.logger.error(`Fallo al enviar correo a ${maskEmail(to)}: ${(error as Error).message}`);
     }
   }
+}
+
+/** Enmascara un correo para los logs: `juan@gmail.com` → `j***@gmail.com`. */
+export function maskEmail(email: string): string {
+  return email.replace(/^(.).*(@.+)$/, '$1***$2');
 }
