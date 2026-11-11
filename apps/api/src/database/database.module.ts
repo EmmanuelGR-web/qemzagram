@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENV, type AppEnv } from '../config/env';
 import { DB, DB_HANDLE, type Database, type DatabaseHandle } from './database.types';
+import { AttachmentsRepository } from './repositories/attachments.repository';
 import { ContactsRepository } from './repositories/contacts.repository';
 import { ConversationsRepository } from './repositories/conversations.repository';
 import { EmailTokensRepository } from './repositories/email-tokens.repository';
@@ -50,6 +51,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     EmailTokensRepository,
     ContactsRepository,
     ConversationsRepository,
+    AttachmentsRepository,
   ],
   exports: [
     DB,
@@ -58,6 +60,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     EmailTokensRepository,
     ContactsRepository,
     ConversationsRepository,
+    AttachmentsRepository,
   ],
 })
 export class DatabaseModule implements OnApplicationShutdown {

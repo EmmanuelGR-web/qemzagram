@@ -7,6 +7,7 @@ import { Avatar } from '@/components/Avatar';
 import { GroupIcon, PlusIcon } from '@/components/icons';
 import { useAuth } from '@/lib/auth-context';
 import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
+import { messagePreview } from '@/lib/messages';
 import { NewChatDialog } from './NewChatDialog';
 
 export function ChatList() {
@@ -57,7 +58,7 @@ export function ChatList() {
         {items.map((conversation) => {
           const info = describeConversation(conversation, user.id);
           const preview = conversation.lastMessage
-            ? `${conversation.lastMessage.senderId === user.id ? 'Vos: ' : ''}${conversation.lastMessage.body}`
+            ? `${conversation.lastMessage.senderId === user.id ? 'Vos: ' : ''}${messagePreview(conversation.lastMessage)}`
             : 'Sin mensajes todavía';
           return (
             <li key={conversation.id}>

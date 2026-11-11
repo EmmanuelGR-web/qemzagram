@@ -80,6 +80,59 @@ export const HelpIcon = () => (
     <path d="M9.500 9a2.500 2.500 0 1 1 3.500 2.300c-.7.400-1 1-1 1.700M12 17h.01" />
   </Icon>
 );
+/* Íconos del chat (adjuntos, voz y stickers). */
+export const AttachIcon = () => (
+  <Icon>
+    <path d="m20.500 11.500-8.200 8.200a5 5 0 0 1-7.100-7.100l8.500-8.500a3.300 3.300 0 0 1 4.700 4.700l-8.500 8.500a1.700 1.700 0 0 1-2.400-2.400l7.800-7.800" />
+  </Icon>
+);
+export const ImageIcon = () => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2.500" />
+    <circle cx="9" cy="10" r="1.800" />
+    <path d="m21 16-5-5-9 9" />
+  </Icon>
+);
+export const FileIcon = () => (
+  <Icon>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+    <path d="M14 3v5h5M9 13h6M9 17h4" />
+  </Icon>
+);
+export const VideoIcon = () => (
+  <Icon>
+    <rect x="2.500" y="6" width="13" height="12" rx="2.500" />
+    <path d="m15.500 10.500 6-3.500v10l-6-3.500" />
+  </Icon>
+);
+export const MicIcon = () => (
+  <Icon>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.500 11a6.500 6.500 0 0 0 13 0M12 17.500V21" />
+  </Icon>
+);
+export const StopIcon = () => (
+  <Icon>
+    <rect x="6.500" y="6.500" width="11" height="11" rx="2" />
+  </Icon>
+);
+export const StickerIcon = () => (
+  <Icon>
+    <path d="M20.500 12A8.500 8.500 0 1 1 12 3.500h3.500l5 5Z" />
+    <path d="M8.500 14.500a4.500 4.500 0 0 0 7 0M9 9.500h.01M15 9.500h.01" />
+  </Icon>
+);
+export const TrashIcon = () => (
+  <Icon>
+    <path d="M4 7h16M9.500 7V4.500h5V7M6.500 7l1 13h9l1-13M10 11v5M14 11v5" />
+  </Icon>
+);
+export const DownloadIcon = () => (
+  <Icon>
+    <path d="M12 4v11M7 10.500l5 5 5-5M4.500 20h15" />
+  </Icon>
+);
+
 /* Íconos de estado (se muestran grandes dentro de `.state-icon`). */
 export const MailIcon = () => (
   <Icon>

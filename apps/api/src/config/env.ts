@@ -24,7 +24,19 @@ const envSchema = z.object({
   SMTP_SECURE: z.enum(['true', 'false']).default('false'),
   MAIL_FROM: z.string().default('Qemzagram <no-reply@qemzagram.local>'),
   UPLOAD_DIR: z.string().default('./uploads'),
+  /** Adjuntos de los chats y stickers propios: cifrados y FUERA de la carpeta pública. */
+  MEDIA_DIR: z.string().default('./media'),
+  /** Antivirus ClamAV (clamd). Obligatorio en producción. */
+  CLAMAV_HOST: z.string().optional(),
+  CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+  /** Rutas a ffmpeg/ffprobe (notas de voz y videos). */
+  FFMPEG_PATH: z.string().default('ffmpeg'),
+  FFPROBE_PATH: z.string().default('ffprobe'),
   RUN_MIGRATIONS: z.enum(['true', 'false']).default('true'),
+}).superRefine((env, context) => {
+  if (env.NODE_ENV === 'production' && !env.CLAMAV_HOST) {
+    context.addIssue({ code: 'custom', path: ['CLAMAV_HOST'], message: 'En producción el antivirus (ClamAV) es obligatorio' });
+  }
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

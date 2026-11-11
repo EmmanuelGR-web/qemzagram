@@ -18,6 +18,7 @@ export const userRoleEnum = pgEnum('user_role', ['user', 'support']);
 export const conversationTypeEnum = pgEnum('conversation_type', ['direct', 'group']);
 export const memberRoleEnum = pgEnum('member_role', ['admin', 'member']);
 export const emailTokenTypeEnum = pgEnum('email_token_type', ['verify', 'reset']);
+export const attachmentKindEnum = pgEnum('attachment_kind', ['image', 'file', 'audio', 'video', 'sticker']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -131,9 +132,58 @@ export const messages = pgTable(
       .notNull()
       .references(() => users.id),
     body: text('body').notNull(),
+    /** Código de un sticker del pack general (validado contra una lista cerrada). */
+    stickerCode: text('sticker_code'),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (table) => [index('messages_conversation_created_idx').on(table.conversationId, table.createdAt)],
+);
+
+/**
+ * Adjunto de un mensaje (imagen, documento, nota de voz, video o sticker propio enviado).
+ * El archivo vive cifrado en el almacenamiento (`storageKey`); el nombre original se guarda cifrado.
+ * `conversationId` se repite para autorizar la descarga sin pasar por el mensaje.
+ */
+export const attachments = pgTable(
+  'attachments',
+  {
+    id: uuid('id').primaryKey(),
+    messageId: uuid('message_id')
+      .notNull()
+      .unique()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    uploaderId: uuid('uploader_id')
+      .notNull()
+      .references(() => users.id),
+    kind: attachmentKindEnum('kind').notNull(),
+    storageKey: text('storage_key').notNull().unique(),
+    /** Tipo MIME determinado por el SERVIDOR (nunca el que manda el cliente). */
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    nameEncrypted: text('name_encrypted'),
+    width: integer('width'),
+    height: integer('height'),
+    durationMs: integer('duration_ms'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('attachments_conversation_idx').on(table.conversationId)],
+);
+
+/** Stickers propios ("Mis stickers"): WebP 512×512 cifrado, visible solo para su dueño. */
+export const stickers = pgTable(
+  'stickers',
+  {
+    id: uuid('id').primaryKey(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    storageKey: text('storage_key').notNull().unique(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('stickers_owner_idx').on(table.ownerId)],
 );
 
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
@@ -156,3 +206,6 @@ export type SessionRow = typeof sessions.$inferSelect;
 export type EmailTokenRow = typeof emailTokens.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
+export type AttachmentRow = typeof attachments.$inferSelect;
+export type NewAttachmentRow = typeof attachments.$inferInsert;
+export type StickerRow = typeof stickers.$inferSelect;

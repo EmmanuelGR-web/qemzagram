@@ -12,6 +12,7 @@ import { ContactsModule } from './contacts/contacts.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health/health.controller';
 import { MailModule } from './mail/mail.module';
+import { MediaModule } from './media/media.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
@@ -34,6 +35,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     UsersModule,
     ContactsModule,
+    MediaModule,
     ChatsModule,
     RealtimeModule,
   ],

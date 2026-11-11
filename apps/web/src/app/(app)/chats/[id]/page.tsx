@@ -1,13 +1,15 @@
 'use client';
 
-import { GROUP_MAX_MEMBERS, MESSAGE_MAX_LENGTH, type ConversationDto, type MessageDto } from '@qemzagram/shared';
+import { GROUP_MAX_MEMBERS, type ConversationDto, type MessageDto } from '@qemzagram/shared';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Avatar } from '@/components/Avatar';
-import { BackIcon, GroupIcon, SendIcon } from '@/components/icons';
+import { Composer } from '@/components/chat/Composer';
+import { MessageContent } from '@/components/chat/MessageContent';
+import { BackIcon, GroupIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
-import { api, errorMessage } from '@/lib/api';
+import { api, errorMessage, refreshSession } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
 import { useRealtimeEvent } from '@/lib/realtime-context';
@@ -20,10 +22,9 @@ export default function ConversationPage() {
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastMediaRefresh = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -53,29 +54,18 @@ export default function ConversationPage() {
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length]);
 
-  async function send(event?: FormEvent) {
-    event?.preventDefault();
-    const body = draft.trim();
-    if (!body || sending) return;
-    setSending(true);
-    setError(null);
-    try {
-      const message = await api<MessageDto>(`/chats/${id}/messages`, { body: { body } });
-      append(message);
-      setDraft('');
-    } catch (caught) {
-      setError(errorMessage(caught));
-    } finally {
-      setSending(false);
-    }
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      void send();
-    }
-  }
+  /**
+   * Un archivo no cargó: probablemente venció su URL firmada (1 h) o la sesión (15 min).
+   * Se renueva la sesión y se vuelven a pedir los mensajes (con URLs nuevas). Como mucho cada 30 s.
+   */
+  const onMediaError = useCallback(() => {
+    if (Date.now() - lastMediaRefresh.current < 30_000) return;
+    lastMediaRefresh.current = Date.now();
+    void refreshSession()
+      .then(() => api<MessageDto[]>(`/chats/${id}/messages?limit=100`))
+      .then((fresh) => setMessages(fresh))
+      .catch(() => undefined);
+  }, [id]);
 
   if (!user) return null;
   if (error && !conversation) {
@@ -118,7 +108,7 @@ export default function ConversationPage() {
             <div key={message.id} className="message-row" data-mine={mine}>
               <div className="bubble">
                 {isGroup && !mine && <span className="bubble-author">{author?.displayName ?? 'Ex miembro'}</span>}
-                <span className="bubble-text">{message.body}</span>
+                <MessageContent message={message} onMediaError={onMediaError} />
                 <time>{formatTime(message.createdAt)}</time>
               </div>
             </div>
@@ -127,25 +117,7 @@ export default function ConversationPage() {
         <div ref={bottomRef} />
       </div>
 
-      {error && (
-        <p className="alert alert-error composer-error" role="alert">
-          {error}
-        </p>
-      )}
-      <form className="composer" onSubmit={send}>
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Escribí un mensaje"
-          rows={1}
-          maxLength={MESSAGE_MAX_LENGTH}
-          aria-label="Mensaje"
-        />
-        <button className="send-btn" disabled={sending || draft.trim().length === 0} aria-label="Enviar">
-          <SendIcon />
-        </button>
-      </form>
+      <Composer conversationId={conversation.id} onSent={append} />
 
       {showInfo && (
         <ConversationInfo

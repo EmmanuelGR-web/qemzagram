@@ -326,6 +326,25 @@ html[data-theme='dark'] .chat-item[aria-current='page'] { background: var(--red-
 .send-btn { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border: 0; border-radius: 50%; background: linear-gradient(135deg, var(--red-400), var(--red-600)); color: #fff; box-shadow: 0 6px 16px rgba(217, 30, 54, 0.35); }
 .send-btn:disabled { opacity: 0.45; box-shadow: none; cursor: not-allowed; }
 
+/* ---------- adjuntos (Fase 2) ---------- */
+.attach-wrap { position: relative; flex: none; }
+.composer-btn { width: 46px; height: 46px; border-radius: 50%; color: var(--muted); }
+.composer-btn:hover, .composer-btn[aria-expanded='true'] { color: var(--red-600); background: var(--surface-2); }
+.attach-menu {
+  position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 30; min-width: 200px; padding: 0.4rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg);
+  animation: drop 0.14s ease-out; transform-origin: bottom left;
+}
+.attach-menu .menu-item svg { color: var(--red-500); }
+.attach-preview { display: block; width: 100%; max-height: 50dvh; object-fit: contain; border-radius: 14px; background: var(--surface-2); }
+
+.bubble-media { display: block; padding: 0; margin: -0.25rem -0.55rem 0.35rem; border: 0; background: none; border-radius: 14px; overflow: hidden; cursor: zoom-in; max-width: calc(100% + 1.1rem); }
+.bubble-media img, .bubble-media video { display: block; width: 100%; height: auto; max-height: 360px; min-width: 160px; object-fit: cover; background: var(--surface-2); }
+.lightbox { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1rem; background: rgba(10, 4, 6, 0.92); animation: fade 0.15s; cursor: zoom-out; }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; cursor: default; }
+.lightbox-close { position: absolute; top: 0.75rem; right: 0.75rem; color: #fff; background: rgba(255, 255, 255, 0.12); }
+.lightbox-close:hover { background: rgba(255, 255, 255, 0.24); }
+
 /* fondos de chat configurables */
 .messages { background-color: var(--bg-soft); }
 html[data-chatbg='plain'] .messages { background-image: none; }

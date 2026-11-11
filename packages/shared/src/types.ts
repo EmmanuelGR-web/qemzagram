@@ -1,3 +1,5 @@
+import type { ATTACHMENT_KINDS, GeneralStickerCode, UPLOAD_KINDS } from './constants';
+
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
 
 export interface PublicUser {
@@ -22,11 +24,43 @@ export interface ContactDto {
   addedAt: string;
 }
 
+export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
+export type UploadKind = (typeof UPLOAD_KINDS)[number];
+
+/**
+ * Adjunto de un mensaje. `url` es una URL FIRMADA y con vencimiento (relativa a la API);
+ * además, la API exige sesión y ser miembro de la conversación para servir el archivo.
+ */
+export interface AttachmentDto {
+  id: string;
+  kind: AttachmentKind;
+  mimeType: string;
+  size: number;
+  /** Nombre original (solo para documentos). */
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  url: string;
+  expiresAt: string;
+}
+
 export interface MessageDto {
   id: string;
   conversationId: string;
   senderId: string;
+  /** Texto del mensaje o epígrafe del adjunto (puede estar vacío si hay adjunto o sticker). */
   body: string;
+  attachment: AttachmentDto | null;
+  /** Sticker del pack general (los stickers propios llegan como `attachment` de tipo "sticker"). */
+  sticker: GeneralStickerCode | null;
+  createdAt: string;
+}
+
+/** Sticker propio de "Mis stickers". */
+export interface StickerDto {
+  id: string;
+  url: string;
   createdAt: string;
 }
 

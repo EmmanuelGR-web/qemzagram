@@ -1,19 +1,53 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import {
   addGroupMemberSchema,
   createDirectChatSchema,
   createGroupSchema,
   listMessagesQuerySchema,
+  MESSAGE_MAX_LENGTH,
+  sendAttachmentSchema,
   sendMessageSchema,
+  UPLOAD_MAX_BYTES_ANY,
   type ConversationDto,
   type CreateGroupInput,
   type MessageDto,
+  type SendAttachmentInput,
 } from '@qemzagram/shared';
+import { memoryStorage } from 'multer';
 import type { z } from 'zod';
 import { CurrentUser, type AuthUser } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { ChatsService } from './chats.service';
+
+/**
+ * Subida de adjuntos: un solo archivo + los campos "kind" y "caption".
+ * El tipo real se valida después por CONTENIDO (MediaProcessor); acá solo se limitan tamaños y cantidades.
+ */
+const attachmentUpload = FileInterceptor('file', {
+  storage: memoryStorage(),
+  limits: { fileSize: UPLOAD_MAX_BYTES_ANY, files: 1, fields: 2, parts: 3, fieldSize: MESSAGE_MAX_LENGTH * 4 },
+});
+
+/** Multer interpreta el nombre del archivo como latin1: se recupera el UTF-8 original (tildes, ñ). */
+function uploadedFile(file: Express.Multer.File | undefined): { buffer: Buffer; originalName: string } {
+  if (!file?.buffer?.length) throw new BadRequestException({ code: 'FILE_REQUIRED', message: 'Adjuntá un archivo' });
+  return { buffer: file.buffer, originalName: Buffer.from(file.originalname ?? '', 'latin1').toString('utf8') };
+}
 
 @Controller('chats')
 export class ChatsController {
@@ -78,5 +112,18 @@ export class ChatsController {
     @Body(new ZodPipe(sendMessageSchema)) body: { body: string },
   ): Promise<MessageDto> {
     return this.chats.sendMessage(user.id, id, body.body);
+  }
+
+  @Post(':id/attachments')
+  @HttpCode(201)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseInterceptors(attachmentUpload)
+  sendAttachment(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(sendAttachmentSchema)) body: SendAttachmentInput,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<MessageDto> {
+    return this.chats.sendAttachment(user.id, id, body, uploadedFile(file));
   }
 }

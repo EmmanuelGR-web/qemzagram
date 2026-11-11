@@ -11,6 +11,7 @@ import { configureApp } from '../../src/app.setup';
 import { loadEnv } from '../../src/config/env';
 import { DB, type Database } from '../../src/database/database.types';
 import { MailPort } from '../../src/mail/mail.port';
+import { AntivirusPort, AntivirusUnavailableError, type ScanResult } from '../../src/media/antivirus.port';
 
 export const ORIGIN = 'http://localhost:3000';
 export const STRONG_PASSWORD = 'Qz!Segura2026-ok';
@@ -46,9 +47,24 @@ export class FakeMail extends MailPort {
   }
 }
 
+/** Cadena de prueba estándar EICAR: inofensiva, pero todo antivirus la detecta. */
+export const EICAR = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
+
+/** Antivirus falso: detecta EICAR y puede simular que está caído. */
+export class FakeAntivirus extends AntivirusPort {
+  unavailable = false;
+  scanned = 0;
+  async scan(data: Buffer): Promise<ScanResult> {
+    this.scanned++;
+    if (this.unavailable) throw new AntivirusUnavailableError('simulado');
+    return data.includes(EICAR) ? { clean: false, signature: 'Eicar-Test-Signature' } : { clean: true };
+  }
+}
+
 export interface TestContext {
   app: NestExpressApplication;
   mail: FakeMail;
+  antivirus: FakeAntivirus;
   db: Database;
   close: () => Promise<void>;
 }
@@ -63,14 +79,21 @@ export async function createTestApp(): Promise<TestContext> {
     PASSWORD_PEPPER: randomBytes(16).toString('hex'),
     MESSAGE_ENC_KEY: randomBytes(32).toString('base64'),
     UPLOAD_DIR: mkdtempSync(join(tmpdir(), 'qz-uploads-')),
+    MEDIA_DIR: mkdtempSync(join(tmpdir(), 'qz-media-')),
     RUN_MIGRATIONS: 'true',
   });
   const mail = new FakeMail();
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(MailPort).useValue(mail).compile();
+  const antivirus = new FakeAntivirus();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(MailPort)
+    .useValue(mail)
+    .overrideProvider(AntivirusPort)
+    .useValue(antivirus)
+    .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app, loadEnv());
   await app.init();
-  return { app, mail, db: app.get(DB), close: () => app.close() };
+  return { app, mail, antivirus, db: app.get(DB), close: () => app.close() };
 }
 
 export interface TestUser {

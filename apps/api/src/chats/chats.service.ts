@@ -1,29 +1,42 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   GROUP_MAX_MEMBERS,
   type ConversationDto,
   type CreateGroupInput,
+  type GeneralStickerCode,
   type MessageDto,
+  type SendAttachmentInput,
 } from '@qemzagram/shared';
+import { randomUUID } from 'node:crypto';
 import { CryptoService } from '../common/crypto.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
+import { AttachmentsRepository } from '../database/repositories/attachments.repository';
 import { ContactsRepository } from '../database/repositories/contacts.repository';
 import { ConversationsRepository, type MemberWithUser } from '../database/repositories/conversations.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
-import type { ConversationRow, MessageRow, UserRow } from '../database/schema';
+import type { AttachmentRow, ConversationRow, MessageRow, UserRow } from '../database/schema';
+import { MediaProcessor, type ProcessedMedia, type UploadedInput } from '../media/media-processor.service';
+import { MediaService } from '../media/media.service';
 import { RealtimePublisher } from '../realtime/realtime.port';
+import { BlobStorage } from '../storage/blob-storage.port';
 
 const NOT_FOUND = { code: 'CHAT_NOT_FOUND', message: 'No encontramos esa conversación' };
 const UNAVAILABLE_BODY = '[Mensaje no disponible]';
 
 @Injectable()
 export class ChatsService {
+  private readonly logger = new Logger(ChatsService.name);
+
   constructor(
     private readonly conversations: ConversationsRepository,
     private readonly users: UsersRepository,
     private readonly contacts: ContactsRepository,
+    private readonly attachments: AttachmentsRepository,
     private readonly crypto: CryptoService,
     private readonly realtime: RealtimePublisher,
+    private readonly media: MediaService,
+    private readonly processor: MediaProcessor,
+    private readonly storage: BlobStorage,
   ) {}
 
   async list(userId: string): Promise<ConversationDto[]> {
@@ -112,7 +125,10 @@ export class ChatsService {
     await this.conversations.removeMember(conversationId, userId);
     const remaining = await this.conversations.getMembers([conversationId]);
     if (remaining.length === 0) {
+      // Se borran también los archivos: la base los elimina en cascada, el almacenamiento no.
+      const keys = await this.attachments.storageKeysForConversation(conversationId);
       await this.conversations.deleteConversation(conversationId);
+      await this.deleteBlobs(keys);
       return;
     }
     if (!remaining.some((member) => member.role === 'admin') && remaining[0]) {
@@ -131,21 +147,76 @@ export class ChatsService {
   async listMessages(userId: string, conversationId: string, limit: number, before?: string): Promise<MessageDto[]> {
     await this.requireMembership(userId, conversationId);
     const rows = await this.conversations.listMessages(conversationId, limit, before ? new Date(before) : undefined);
-    return rows.map((row) => this.toMessageDto(row));
+    return this.toMessageDtos(rows);
   }
 
   async sendMessage(userId: string, conversationId: string, body: string): Promise<MessageDto> {
     await this.requireMembership(userId, conversationId);
     const encrypted = this.crypto.encryptText(body, conversationId);
     const row = await this.conversations.insertMessage(conversationId, userId, encrypted);
-    const dto = this.toMessageDto(row);
-    const members = await this.conversations.getMembers([conversationId]);
+    return this.publish(this.toMessageDto(row, null));
+  }
+
+  /** Envía un archivo (imagen, documento, nota de voz o video) con un epígrafe opcional. */
+  async sendAttachment(userId: string, conversationId: string, input: SendAttachmentInput, file: UploadedInput): Promise<MessageDto> {
+    await this.requireMembership(userId, conversationId);
+    const processed = await this.processor.process(input.kind, file, userId);
+    return this.storeAndPublish(userId, conversationId, input.kind, processed, input.caption.trim());
+  }
+
+  /**
+   * Guarda el archivo cifrado (AAD = id del adjunto) y crea mensaje + adjunto en una transacción.
+   * Si la base falla, se borra el archivo para no dejar basura.
+   */
+  private async storeAndPublish(
+    userId: string,
+    conversationId: string,
+    kind: AttachmentRow['kind'],
+    processed: ProcessedMedia,
+    caption: string,
+  ): Promise<MessageDto> {
+    const attachmentId = randomUUID();
+    const storageKey = randomUUID();
+    await this.storage.put(storageKey, this.crypto.encryptBlob(processed.data, attachmentId));
+    try {
+      const { message, attachment } = await this.attachments.createWithMessage(
+        conversationId,
+        userId,
+        this.crypto.encryptText(caption, conversationId),
+        {
+          id: attachmentId,
+          kind,
+          storageKey,
+          mimeType: processed.mimeType,
+          sizeBytes: processed.data.length,
+          nameEncrypted: processed.name ? this.media.encryptName(processed.name, attachmentId) : null,
+          width: processed.width,
+          height: processed.height,
+          durationMs: processed.durationMs,
+        },
+      );
+      return this.publish(this.toMessageDto(message, attachment));
+    } catch (error) {
+      await this.deleteBlobs([storageKey]);
+      throw error;
+    }
+  }
+
+  /** Entrega el mensaje en tiempo real a todos los miembros. */
+  private async publish(dto: MessageDto): Promise<MessageDto> {
+    const members = await this.conversations.getMembers([dto.conversationId]);
     this.realtime.toUsers(
       members.map((member) => member.user.id),
       'chat:message',
       dto,
     );
     return dto;
+  }
+
+  private async deleteBlobs(keys: string[]): Promise<void> {
+    for (const key of keys) {
+      await this.storage.delete(key).catch((error: Error) => this.logger.error(`No se pudo borrar un archivo: ${error.message}`));
+    }
   }
 
   // ---------- helpers ----------
@@ -176,7 +247,9 @@ export class ChatsService {
     for (const member of members) {
       membersByConversation.set(member.conversationId, [...(membersByConversation.get(member.conversationId) ?? []), member]);
     }
-    const lastByConversation = new Map<string, MessageRow>(lastMessages.map((message) => [message.conversationId, message]));
+    const lastByConversation = new Map<string, MessageDto>(
+      (await this.toMessageDtos(lastMessages)).map((message) => [message.conversationId, message]),
+    );
 
     return rows.map((row) => {
       const last = lastByConversation.get(row.id);
@@ -189,12 +262,19 @@ export class ChatsService {
           role: member.role,
           user: member.user.isPrivate ? toLimitedUser(member.user) : toPublicUser(member.user),
         })),
-        lastMessage: last ? this.toMessageDto(last) : null,
+        lastMessage: last ?? null,
       };
     });
   }
 
-  private toMessageDto(row: MessageRow): MessageDto {
+  /** Convierte mensajes a DTO trayendo sus adjuntos en UNA consulta (sin N+1). */
+  private async toMessageDtos(rows: MessageRow[]): Promise<MessageDto[]> {
+    const found = await this.attachments.findByMessageIds(rows.map((row) => row.id));
+    const byMessage = new Map(found.map((attachment) => [attachment.messageId, attachment]));
+    return rows.map((row) => this.toMessageDto(row, byMessage.get(row.id) ?? null));
+  }
+
+  private toMessageDto(row: MessageRow, attachment: AttachmentRow | null): MessageDto {
     let body: string;
     try {
       body = this.crypto.decryptText(row.body, row.conversationId);
@@ -206,6 +286,8 @@ export class ChatsService {
       conversationId: row.conversationId,
       senderId: row.senderId,
       body,
+      attachment: attachment ? this.media.toAttachmentDto(attachment) : null,
+      sticker: (row.stickerCode as GeneralStickerCode | null) ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }

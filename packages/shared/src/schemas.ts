@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
+  GENERAL_STICKER_CODES,
   GROUP_MAX_MEMBERS,
   GROUP_TITLE_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
@@ -10,6 +11,7 @@ import {
   TAG_MAX_LENGTH,
   TAG_MIN_LENGTH,
   TAG_REGEX,
+  UPLOAD_KINDS,
 } from './constants';
 import { getPasswordIssues, PASSWORD_ISSUE_MESSAGES } from './password';
 
@@ -122,9 +124,25 @@ export const listMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+/** Campos de texto que acompañan a un archivo subido al chat (multipart). */
+export const sendAttachmentSchema = z
+  .object({
+    kind: z.enum(UPLOAD_KINDS, { message: 'Tipo de adjunto inválido' }),
+    caption: z.string().max(MESSAGE_MAX_LENGTH).optional().default(''),
+  })
+  .strict();
+
+/** Enviar un sticker: del pack general (por código) o uno propio (por id). */
+export const sendStickerSchema = z.union([
+  z.object({ code: z.enum(GENERAL_STICKER_CODES, { message: 'Sticker desconocido' }) }).strict(),
+  z.object({ stickerId: z.string().uuid() }).strict(),
+]);
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+export type SendAttachmentInput = z.infer<typeof sendAttachmentSchema>;
+export type SendStickerInput = z.infer<typeof sendStickerSchema>;

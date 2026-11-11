@@ -15,7 +15,8 @@ export type AuditAction =
   | 'password.reset_done'
   | 'account.paused'
   | 'account.deleted'
-  | 'profile.updated';
+  | 'profile.updated'
+  | 'upload.malware_blocked';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

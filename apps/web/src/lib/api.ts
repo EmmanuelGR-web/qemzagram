@@ -55,6 +55,9 @@ export async function api<T = void>(path: string, options: RequestOptions = {}):
   return data as T;
 }
 
+/** Renueva la sesión (p. ej. cuando una imagen falló porque venció la cookie de acceso). */
+export const refreshSession = tryRefresh;
+
 /** Las imágenes las sirve la API; se piden por el mismo origen vía /api. */
 export function mediaUrl(path: string | null | undefined): string | null {
   return path ? `/api${path}` : null;
