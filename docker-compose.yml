@@ -1,0 +1,32 @@
+# Servicios de desarrollo: base de datos PostgreSQL y bandeja de correo de prueba.
+# Uso:  npm run db:up   (levantar)   |   npm run db:down   (apagar)
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: qemzagram-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qemzagram
+      POSTGRES_PASSWORD: qemzagram_dev
+      POSTGRES_DB: qemzagram
+    ports:
+      - '127.0.0.1:5432:5432' # solo accesible desde tu propia PC
+    volumes:
+      - qemzagram-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U qemzagram -d qemzagram']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Atrapa todos los correos que envía la app (verificación, recuperación). Verlos en http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: qemzagram-mail
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:1025:1025' # SMTP
+      - '127.0.0.1:8025:8025' # bandeja web
+
+volumes:
+  qemzagram-data:

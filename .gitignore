@@ -1,0 +1,20 @@
+# dependencias y builds
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+coverage/
+
+# secretos y datos locales (NUNCA subir)
+.env
+.env.*
+!.env.example
+apps/api/uploads/
+apps/api/.data/
+*.log
+
+# sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json

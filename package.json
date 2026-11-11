@@ -1,0 +1,29 @@
+{
+  "name": "qemzagram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Qemzagram by Neoematech — red social de mensajería sin número de teléfono",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "prepare": "npm run build -w @qemzagram/shared",
+    "build": "npm run build -w @qemzagram/shared && npm run build -w @qemzagram/api && npm run build -w @qemzagram/web",
+    "dev:api": "npm run start:dev -w @qemzagram/api",
+    "dev:web": "npm run dev -w @qemzagram/web",
+    "test": "npm run test -w @qemzagram/api",
+    "typecheck": "npm run typecheck -w @qemzagram/api && npm run typecheck -w @qemzagram/web",
+    "db:up": "docker compose up -d db mailpit",
+    "db:down": "docker compose down",
+    "db:generate": "npm run db:generate -w @qemzagram/api",
+    "audit": "npm audit --omit=dev",
+    "setup": "node scripts/setup-env.mjs",
+    "setup:sin-docker": "node scripts/setup-env.mjs --pglite",
+    "start:api": "npm run start -w @qemzagram/api",
+    "start:web": "npm run start -w @qemzagram/web"
+  }
+}
