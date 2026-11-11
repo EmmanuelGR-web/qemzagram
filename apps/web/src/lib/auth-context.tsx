@@ -1,0 +1,46 @@
+'use client';
+
+import type { SelfUser } from '@qemzagram/shared';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { api, ApiError } from './api';
+
+interface AuthState {
+  user: SelfUser | null;
+  loading: boolean;
+  setUser: (user: SelfUser | null) => void;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthState | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<SelfUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    api<SelfUser>('/users/me')
+      .then((me) => active && setUser(me))
+      .catch((error: unknown) => {
+        if (active && !(error instanceof ApiError && error.status === 401)) console.error(error);
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const logout = useCallback(async () => {
+    await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
+    setUser(null);
+  }, []);
+
+  const value = useMemo(() => ({ user, loading, setUser, logout }), [user, loading, logout]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthState {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth debe usarse dentro de <AuthProvider>');
+  return context;
+}
