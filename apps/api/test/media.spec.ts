@@ -82,6 +82,9 @@ describe('Adjuntos: imágenes, URLs firmadas y seguridad', () => {
 
   it('solo los miembros actuales pueden descargar, siempre con sesión y firma válida', async () => {
     const sent = await sendImage(ana, await photoWithExif()).expect(201);
+    expect((sent.body as MessageDto).body).toBe(''); // sin comentario: texto vacío (no "[Mensaje no disponible]")
+    const history = await beto.agent.get(`/chats/${chatId}/messages`).expect(200);
+    expect((history.body as MessageDto[]).at(-1)?.body).toBe('');
     const url = (sent.body as MessageDto).attachment?.url ?? '';
     const id = (sent.body as MessageDto).attachment?.id ?? '';
 

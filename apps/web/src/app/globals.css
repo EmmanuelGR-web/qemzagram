@@ -361,6 +361,35 @@ html[data-theme='dark'] .chat-item[aria-current='page'] { background: var(--red-
 .recording-bar .send-btn { margin-left: auto; }
 .recording-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--red-500); animation: pulse 1s ease-in-out infinite; flex: none; }
 .recording-time { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3.2rem; }
+/* stickers: sin globo de fondo, como en las apps de mensajería */
+.bubble[data-sticker='true'], .message-row[data-mine='true'] .bubble[data-sticker='true'] { background: transparent; border-color: transparent; box-shadow: none; padding: 0; }
+.bubble[data-sticker='true'] time { color: var(--muted); opacity: 1; }
+.sticker-img { display: block; width: 150px; height: 150px; object-fit: contain; }
+.sticker-picker {
+  position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 30; width: min(360px, calc(100vw - 1.5rem));
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg);
+  animation: drop 0.14s ease-out; transform-origin: bottom left; overflow: hidden;
+}
+.sticker-tabs { display: flex; align-items: center; gap: 0.25rem; padding: 0.5rem 0.5rem 0; border-bottom: 1px solid var(--line); }
+.sticker-tabs [role='tab'] { border: 0; background: none; padding: 0.55rem 0.8rem; font-weight: 700; font-size: 0.88rem; color: var(--muted); border-bottom: 3px solid transparent; }
+.sticker-tabs [role='tab'][aria-selected='true'] { color: var(--red-600); border-bottom-color: var(--red-500); }
+.sticker-edit { margin-left: auto; border: 0; background: none; color: var(--red-500); font-weight: 700; font-size: 0.85rem; padding: 0.4rem 0.6rem; }
+.sticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; padding: 0.6rem; max-height: 300px; overflow-y: auto; }
+.sticker-cell { display: grid; place-items: center; aspect-ratio: 1; padding: 0.25rem; border: 0; background: none; border-radius: 12px; width: 100%; }
+.sticker-cell:hover:not(:disabled) { background: var(--surface-2); }
+.sticker-cell img { width: 100%; height: 100%; object-fit: contain; }
+.sticker-add { border: 2px dashed var(--line); color: var(--red-500); gap: 0.1rem; align-content: center; }
+.sticker-add small { font-size: 0.7rem; font-weight: 700; }
+.sticker-cell-wrap { position: relative; }
+.sticker-delete { position: absolute; top: -2px; right: -2px; display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid var(--surface); border-radius: 50%; background: var(--red-600); color: #fff; padding: 0; }
+.sticker-delete svg { width: 15px; height: 15px; }
+.sticker-hint { grid-column: 2 / -1; align-self: center; margin: 0; }
+.sticker-error { margin: 0.5rem 0.6rem 0; }
+@media (max-width: 520px) {
+  .sticker-picker { position: fixed; left: 0.75rem; right: 0.75rem; bottom: calc(76px + env(safe-area-inset-bottom)); width: auto; }
+  .composer-btn { width: 40px; height: 40px; }
+  .sticker-img { width: 120px; height: 120px; }
+}
 .lightbox { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1rem; background: rgba(10, 4, 6, 0.92); animation: fade 0.15s; cursor: zoom-out; }
 .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; cursor: default; }
 .lightbox-close { position: absolute; top: 0.75rem; right: 0.75rem; color: #fff; background: rgba(255, 255, 255, 0.12); }

@@ -36,4 +36,16 @@ export class MediaController {
     const file = await this.media.getAttachmentForViewer(user.id, id, query.exp, query.sig);
     sendBuffer(request, response, file, query.exp - Date.now() / 1000);
   }
+
+  @Get('s/:id')
+  async sticker(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query(new ZodPipe(signedQuerySchema)) query: SignedQuery,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    const file = await this.media.getStickerForOwner(user.id, id, query.exp, query.sig);
+    sendBuffer(request, response, file, query.exp - Date.now() / 1000);
+  }
 }

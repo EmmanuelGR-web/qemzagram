@@ -2,11 +2,12 @@
 
 import { ALLOWED_FILE_EXTENSIONS, MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, VIDEO_MAX_SECONDS, VOICE_MAX_SECONDS, type MessageDto, type UploadKind } from '@qemzagram/shared';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, TrashIcon, VideoIcon } from '@/components/icons';
+import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, StickerIcon, TrashIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
 import { formatBytes, formatDuration, kindForFile } from '@/lib/messages';
 import { useVoiceRecorder } from '@/lib/use-voice-recorder';
+import { StickerPicker } from './StickerPicker';
 
 interface Props {
   conversationId: string;
@@ -29,6 +30,7 @@ export function Composer({ conversationId, onSent }: Props) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [stickersOpen, setStickersOpen] = useState(false);
   const [pending, setPending] = useState<PendingFile | null>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -142,7 +144,10 @@ export function Composer({ conversationId, onSent }: Props) {
                 className="icon-btn composer-btn"
                 aria-label="Adjuntar"
                 aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((open) => !open)}
+                onClick={() => {
+                  setStickersOpen(false);
+                  setMenuOpen((open) => !open);
+                }}
               >
                 <AttachIcon />
               </button>
@@ -162,6 +167,22 @@ export function Composer({ conversationId, onSent }: Props) {
                   </button>
                 </div>
               )}
+            </div>
+            <div className="attach-wrap">
+              <button
+                type="button"
+                className="icon-btn composer-btn"
+                aria-label="Stickers"
+                aria-expanded={stickersOpen}
+                data-sticker-toggle
+                onClick={() => {
+                  setMenuOpen(false);
+                  setStickersOpen((open) => !open);
+                }}
+              >
+                <StickerIcon />
+              </button>
+              {stickersOpen && <StickerPicker conversationId={conversationId} onSent={onSent} onClose={() => setStickersOpen(false)} />}
             </div>
             <textarea
               value={draft}

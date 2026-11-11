@@ -6,6 +6,8 @@ import {
   type GeneralStickerCode,
   type MessageDto,
   type SendAttachmentInput,
+  type SendStickerInput,
+  STICKER_SIZE,
 } from '@qemzagram/shared';
 import { randomUUID } from 'node:crypto';
 import { CryptoService } from '../common/crypto.service';
@@ -18,6 +20,7 @@ import type { AttachmentRow, ConversationRow, MessageRow, UserRow } from '../dat
 import { MediaProcessor, type ProcessedMedia, type UploadedInput } from '../media/media-processor.service';
 import { MediaService } from '../media/media.service';
 import { RealtimePublisher } from '../realtime/realtime.port';
+import { StickersService } from '../stickers/stickers.service';
 import { BlobStorage } from '../storage/blob-storage.port';
 
 const NOT_FOUND = { code: 'CHAT_NOT_FOUND', message: 'No encontramos esa conversación' };
@@ -37,6 +40,7 @@ export class ChatsService {
     private readonly media: MediaService,
     private readonly processor: MediaProcessor,
     private readonly storage: BlobStorage,
+    private readonly stickers: StickersService,
   ) {}
 
   async list(userId: string): Promise<ConversationDto[]> {
@@ -162,6 +166,22 @@ export class ChatsService {
     await this.requireMembership(userId, conversationId);
     const processed = await this.processor.process(input.kind, file, userId);
     return this.storeAndPublish(userId, conversationId, input.kind, processed, input.caption.trim());
+  }
+
+  /**
+   * Envía un sticker: del pack general (solo se guarda el código) o uno propio.
+   * El propio se COPIA como adjunto: los miembros lo ven sin acceder a la colección de quien lo envía,
+   * y borrarlo después de "Mis stickers" no rompe los mensajes ya enviados.
+   */
+  async sendSticker(userId: string, conversationId: string, input: SendStickerInput): Promise<MessageDto> {
+    await this.requireMembership(userId, conversationId);
+    if ('code' in input) {
+      const row = await this.conversations.insertMessage(conversationId, userId, this.crypto.encryptText('', conversationId), input.code);
+      return this.publish(this.toMessageDto(row, null));
+    }
+    const image = await this.stickers.readOwned(userId, input.stickerId);
+    const processed: ProcessedMedia = { data: image, mimeType: 'image/webp', name: null, width: STICKER_SIZE, height: STICKER_SIZE, durationMs: null };
+    return this.storeAndPublish(userId, conversationId, 'sticker', processed, '');
   }
 
   /**

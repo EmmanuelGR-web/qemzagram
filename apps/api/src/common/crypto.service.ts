@@ -75,7 +75,8 @@ export class CryptoService {
 
   decryptText(payload: string, aad: string): string {
     const [version, iv, tag, data] = payload.split('.');
-    if (version !== ENCRYPTION_VERSION || !iv || !tag || !data) throw new Error('Formato de cifrado desconocido');
+    // "data" puede ser una cadena vacía (texto vacío, p. ej. una foto sin comentario): solo se exige que exista.
+    if (version !== ENCRYPTION_VERSION || !iv || !tag || data === undefined) throw new Error('Formato de cifrado desconocido');
     const decipher = createDecipheriv('aes-256-gcm', this.encryptionKey, Buffer.from(iv, 'base64url'));
     decipher.setAAD(Buffer.from(aad, 'utf8'));
     decipher.setAuthTag(Buffer.from(tag, 'base64url'));

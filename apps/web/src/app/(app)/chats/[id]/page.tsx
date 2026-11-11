@@ -106,7 +106,7 @@ export default function ConversationPage() {
           const author = authors.get(message.senderId);
           return (
             <div key={message.id} className="message-row" data-mine={mine}>
-              <div className="bubble">
+              <div className="bubble" data-sticker={Boolean(message.sticker) || message.attachment?.kind === 'sticker'}>
                 {isGroup && !mine && <span className="bubble-author">{author?.displayName ?? 'Ex miembro'}</span>}
                 <MessageContent message={message} onMediaError={onMediaError} />
                 <time>{formatTime(message.createdAt)}</time>

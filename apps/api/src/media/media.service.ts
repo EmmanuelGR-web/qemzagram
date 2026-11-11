@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { AttachmentDto } from '@qemzagram/shared';
+import type { AttachmentDto, StickerDto } from '@qemzagram/shared';
 import { CryptoService } from '../common/crypto.service';
 import { AttachmentsRepository } from '../database/repositories/attachments.repository';
 import { ConversationsRepository } from '../database/repositories/conversations.repository';
-import type { AttachmentRow } from '../database/schema';
+import { StickersRepository } from '../database/repositories/stickers.repository';
+import type { AttachmentRow, StickerRow } from '../database/schema';
 import { BlobStorage } from '../storage/blob-storage.port';
 import { MediaUrlService, type MediaScope } from './media-url.service';
 
@@ -22,6 +23,7 @@ export class MediaService {
   constructor(
     private readonly attachments: AttachmentsRepository,
     private readonly conversations: ConversationsRepository,
+    private readonly stickers: StickersRepository,
     private readonly storage: BlobStorage,
     private readonly crypto: CryptoService,
     private readonly urls: MediaUrlService,
@@ -64,6 +66,18 @@ export class MediaService {
       disposition: isDocument ? 'attachment' : 'inline',
       fileName: (isDocument && row.nameEncrypted ? this.decryptName(row) : null) ?? `qemzagram-${row.id.slice(0, 8)}`,
     };
+  }
+
+  /** Sticker propio: SOLO su dueño lo puede ver (en los chats viaja como copia, en un adjunto). */
+  async getStickerForOwner(viewerId: string, id: string, exp: number, sig: string): Promise<ServedFile> {
+    if (!this.urls.verify('s', id, exp, sig)) throw new NotFoundException(NOT_FOUND);
+    const row = await this.stickers.findOwned(id, viewerId);
+    if (!row) throw new NotFoundException(NOT_FOUND);
+    return { data: await this.readBlob(row.storageKey, row.id), mimeType: 'image/webp', disposition: 'inline', fileName: 'sticker.webp' };
+  }
+
+  toStickerDto(row: StickerRow): StickerDto {
+    return { id: row.id, url: this.urls.sign('s', row.id).url, createdAt: row.createdAt.toISOString() };
   }
 
   verifySignature(scope: MediaScope, id: string, exp: number, sig: string): boolean {

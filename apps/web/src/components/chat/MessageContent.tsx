@@ -1,6 +1,6 @@
 'use client';
 
-import type { AttachmentDto, MessageDto } from '@qemzagram/shared';
+import { GENERAL_STICKER_LABELS, type AttachmentDto, type MessageDto } from '@qemzagram/shared';
 import { useEffect, useState } from 'react';
 import { CloseIcon, DownloadIcon, FileIcon, MicIcon } from '@/components/icons';
 import { mediaUrl } from '@/lib/api';
@@ -15,6 +15,9 @@ interface Props {
 /** Contenido de una burbuja: adjunto (si hay) + texto o epígrafe. */
 export function MessageContent({ message, onMediaError }: Props) {
   const { attachment } = message;
+  if (message.sticker) {
+    return <img className="sticker-img" src={`/stickers/${message.sticker}.svg`} alt={`Sticker: ${GENERAL_STICKER_LABELS[message.sticker]}`} />;
+  }
   return (
     <>
       {attachment && <AttachmentView attachment={attachment} onMediaError={onMediaError} />}
@@ -28,6 +31,8 @@ function AttachmentView({ attachment, onMediaError }: { attachment: AttachmentDt
   switch (attachment.kind) {
     case 'image':
       return <ImageAttachment src={src} attachment={attachment} onMediaError={onMediaError} />;
+    case 'sticker':
+      return <img className="sticker-img" src={src} alt="Sticker" loading="lazy" onError={onMediaError} />;
     case 'file':
       return <FileAttachment src={src} attachment={attachment} />;
     case 'video':

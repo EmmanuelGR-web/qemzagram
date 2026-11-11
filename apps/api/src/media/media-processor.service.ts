@@ -1,5 +1,14 @@
 import { BadRequestException, Injectable, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
-import { ALLOWED_FILE_EXTENSIONS, FILE_NAME_MAX_LENGTH, UPLOAD_MAX_BYTES, VIDEO_MAX_SECONDS, VOICE_MAX_SECONDS, type UploadKind } from '@qemzagram/shared';
+import {
+  ALLOWED_FILE_EXTENSIONS,
+  FILE_NAME_MAX_LENGTH,
+  STICKER_SIZE,
+  STICKER_UPLOAD_MAX_BYTES,
+  UPLOAD_MAX_BYTES,
+  VIDEO_MAX_SECONDS,
+  VOICE_MAX_SECONDS,
+  type UploadKind,
+} from '@qemzagram/shared';
 import sharp from 'sharp';
 import { AuditService } from '../common/audit.service';
 import { AntivirusPort, AntivirusUnavailableError } from './antivirus.port';
@@ -127,6 +136,32 @@ export class MediaProcessor {
     if (!result.clean) {
       await this.audit.log('upload.malware_blocked', { userId, meta: { kind, signature: result.signature } });
       throw rejected('MALWARE_DETECTED', 'El archivo fue bloqueado por el antivirus');
+    }
+  }
+
+  /**
+   * Sticker propio: imagen → WebP de 512×512 con fondo transparente (la imagen entera, sin recortar),
+   * sin metadatos. Pasa por la misma validación de contenido y antivirus que cualquier subida.
+   */
+  async processSticker(buffer: Buffer, userId: string): Promise<ProcessedMedia> {
+    if (buffer.length === 0) throw rejected('FILE_REQUIRED', 'Elegí una imagen');
+    if (buffer.length > STICKER_UPLOAD_MAX_BYTES) {
+      throw new PayloadTooLargeException({ code: 'FILE_TOO_LARGE', message: `La imagen supera el máximo de ${STICKER_UPLOAD_MAX_BYTES / 1024 / 1024} MB` });
+    }
+    if (sniff(buffer)?.family !== 'image') throw rejected('INVALID_IMAGE', 'El sticker tiene que ser una imagen');
+    await this.scan(buffer, userId, 'sticker');
+    try {
+      const source = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'error' });
+      const metadata = await source.metadata();
+      if (!metadata.format || !IMAGE_FORMATS.has(metadata.format)) throw new Error('formato no permitido');
+      const data = await source
+        .rotate()
+        .resize(STICKER_SIZE, STICKER_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .webp({ quality: 85, alphaQuality: 90 })
+        .toBuffer();
+      return { data, mimeType: 'image/webp', name: null, width: STICKER_SIZE, height: STICKER_SIZE, durationMs: null };
+    } catch {
+      throw rejected('INVALID_IMAGE', 'El archivo no es una imagen válida (JPG, PNG, WebP o GIF)');
     }
   }
 

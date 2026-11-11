@@ -22,11 +22,13 @@ import {
   MESSAGE_MAX_LENGTH,
   sendAttachmentSchema,
   sendMessageSchema,
+  sendStickerSchema,
   UPLOAD_MAX_BYTES_ANY,
   type ConversationDto,
   type CreateGroupInput,
   type MessageDto,
   type SendAttachmentInput,
+  type SendStickerInput,
 } from '@qemzagram/shared';
 import { memoryStorage } from 'multer';
 import type { z } from 'zod';
@@ -112,6 +114,17 @@ export class ChatsController {
     @Body(new ZodPipe(sendMessageSchema)) body: { body: string },
   ): Promise<MessageDto> {
     return this.chats.sendMessage(user.id, id, body.body);
+  }
+
+  @Post(':id/stickers')
+  @HttpCode(201)
+  @Throttle({ default: { limit: 30, ttl: 10_000 } })
+  sendSticker(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(sendStickerSchema)) body: SendStickerInput,
+  ): Promise<MessageDto> {
+    return this.chats.sendSticker(user.id, id, body);
   }
 
   @Post(':id/attachments')
