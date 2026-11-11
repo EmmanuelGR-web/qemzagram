@@ -17,10 +17,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <main className="auth-page">
       <aside className="auth-hero" aria-hidden="true">
         <div className="auth-hero-inner">
-          <LogoMark size={120} variant="white" />
-          <h1>
-            Qemza<span>gram</span>
-          </h1>
+          {/* Logo y nombre forman un bloque: el logo queda centrado respecto del nombre. */}
+          <div className="hero-brand">
+            <LogoMark size={120} variant="white" />
+            <h1>
+              Qemza<span>gram</span>
+            </h1>
+          </div>
           <p className="hero-tagline">Conectá. Compartí. Disfrutá.</p>
           <ul className="hero-points">
             <li>Sin número de teléfono: tu tag es tu identidad.</li>

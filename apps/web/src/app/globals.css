@@ -179,6 +179,7 @@ html[data-theme='dark'] .alert-ok { background: #12301f; color: #a8e6c0; border-
 }
 .auth-hero::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1.5px, transparent 1.5px); background-size: 26px 26px; opacity: 0.5; }
 .auth-hero-inner { position: relative; z-index: 1; max-width: 460px; }
+.hero-brand { display: inline-flex; flex-direction: column; align-items: center; }
 .auth-hero h1 { font-size: 3rem; margin: 1rem 0 0.2rem; font-weight: 800; }
 .auth-hero h1 span { color: #ffd2d8; }
 .hero-tagline { font-size: 1.25rem; font-weight: 600; opacity: 0.95; }
