@@ -26,7 +26,7 @@ Este repositorio contiene la **Fase 1** del proyecto: la base segura (cuentas, p
 | Fotos/videos/audios/archivos en el chat, stickers propios, estados, llamadas, personas cercanas, panel de soporte | 🔜 Fases 2 a 6 |
 | Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7 |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 20 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 22 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 

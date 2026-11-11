@@ -25,5 +25,10 @@
     "setup:sin-docker": "node scripts/setup-env.mjs --pglite",
     "start:api": "npm run start -w @qemzagram/api",
     "start:web": "npm run start -w @qemzagram/web"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
   }
 }
