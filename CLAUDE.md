@@ -20,8 +20,8 @@ Leé este archivo completo antes de tocar código. Es la fuente de verdad sobre 
 ## 3. Estado actual y hoja de ruta
 
 - ✅ **Fase 1 (hecha):** cuentas con correo verificado, login, recuperación de contraseña, perfil (foto + portada, público/privado), agenda por tag, chats 1 a 1 y grupos (máx. 10) en tiempo real, mensajes cifrados en la base, ajustes, pausar/dar de baja la cuenta.
-- 🔜 **Fase 2:** imágenes (cámara/galería), videos, notas de voz, archivos, stickers generales y propios (almacenamiento externo con URLs firmadas, antivirus).
-- Fases 3–7: estados 24 h, llamadas/videollamadas (WebRTC + SFU), personas cercanas, panel de soporte/denuncias/bajas, E2EE y endurecimiento.
+- ✅ **Fase 2 (hecha):** imágenes (cámara/galería), videos, notas de voz, documentos, stickers generales y propios. Módulos `media/` y `stickers/`; archivos cifrados detrás del puerto `BlobStorage` (hoy disco local; falta adaptador S3/R2), URLs firmadas, antivirus ClamAV (`AntivirusPort`) y ffmpeg (`MediaTranscoder`). Ver `docs/SEGURIDAD.md` §2.1.
+- 🔜 Fases 3–7: estados 24 h, llamadas/videollamadas (WebRTC + SFU), personas cercanas, panel de soporte/denuncias/bajas, E2EE y endurecimiento.
 - Detalle completo en [`docs/FASES.md`](docs/FASES.md). **Trabajá una fase a la vez** y no empieces la siguiente sin confirmación del usuario.
 
 ## 4. Stack y estructura
@@ -36,7 +36,7 @@ Monorepo con **npm workspaces**.
 | `docs/` | `SEGURIDAD.md`, `ARQUITECTURA.md`, `FASES.md` |
 | `scripts/setup-env.mjs` | Genera `apps/api/.env` con secretos aleatorios |
 
-Estructura del backend (`apps/api/src`): `auth/`, `users/`, `contacts/`, `chats/`, `realtime/`, `mail/`, `storage/`, `database/` (esquema + repositorios), `common/` (cifrado, auditoría, guards, pipes), `config/` (validación de `.env`). Tests en `apps/api/test/`.
+Estructura del backend (`apps/api/src`): `auth/`, `users/`, `contacts/`, `chats/`, `media/` (adjuntos, antivirus, ffmpeg, URLs firmadas), `stickers/`, `realtime/`, `mail/`, `storage/`, `database/` (esquema + repositorios), `common/` (cifrado, auditoría, guards, pipes), `config/` (validación de `.env`). Tests en `apps/api/test/`.
 
 Web (`apps/web/src`): `app/` (rutas: `(auth)` y `(app)`), `components/`, `lib/` (api, contextos de auth/chats/preferencias/tiempo real).
 
@@ -84,7 +84,7 @@ Es una red social: un error de seguridad es el peor error posible. Respetá siem
 6. **Contraseñas:** Argon2id + pepper (`PASSWORD_PEPPER`). Nunca registres ni devuelvas contraseñas, hashes, tokens ni contenido de mensajes en logs o respuestas.
 7. **Anti-enumeración:** las respuestas de registro/login/recuperación no deben revelar si un correo existe (conservá el mismo código y el equiparado de tiempos).
 8. **Mensajes:** cifrados con AES-256-GCM (clave `MESSAGE_ENC_KEY`, AAD = id de conversación). Esto **no es E2EE** (lo hará la Fase 7); no lo describas como E2EE.
-9. **Archivos subidos:** validá el **contenido real** (no la extensión ni el `Content-Type` del cliente), limitá tamaño, re-codificá (quitar EXIF/metadatos), nombres aleatorios (UUID), servilos con `X-Content-Type-Options: nosniff`. Para la Fase 2: almacenamiento externo, URLs firmadas con vencimiento y antivirus.
+9. **Archivos subidos:** validá el **contenido real** (no la extensión ni el `Content-Type` del cliente), limitá tamaño, re-codificá (quitar EXIF/metadatos), nombres aleatorios (UUID), servilos con `X-Content-Type-Options: nosniff`. Toda subida nueva pasa por `MediaProcessor` (tipo real → antivirus → re-codificación) y se guarda cifrada con `CryptoService.encryptBlob` + `BlobStorage`; se sirve solo con URL firmada **y** permiso verificado. Audio/video siempre por `MediaTranscoder` (nunca guardar sin quitar metadatos).
 10. **Soporte:** el rol `support` **jamás** puede leer conversaciones. No crees endpoints que lo permitan; solo estadísticas agregadas, denuncias y bajas.
 11. **Ubicación (Fase 5):** solo opt-in, coordenadas aproximadas, nunca exactas.
 12. **Auditoría:** eventos sensibles van a `audit_log` mediante `AuditService`. Los correos se enmascaran en logs.
@@ -106,7 +106,8 @@ Detalle y límites honestos (qué NO está implementado): [`docs/SEGURIDAD.md`](
 
 - Jest + ts-jest + supertest + socket.io-client, con **PGlite en memoria** (`pglite://memory`): no necesitan Docker.
 - Se ejecutan con `node --experimental-vm-modules` (ya configurado en `npm test`). **No cambies ese flag**: PGlite usa `import()` dinámico y falla sin él.
-- Los helpers están en `apps/api/test/support/test-app.ts` (`createTestApp`, `signUp`, `FakeMail`, `setCookies`).
+- Los helpers están en `apps/api/test/support/test-app.ts` (`createTestApp`, `signUp`, `FakeMail`, `FakeAntivirus` con EICAR, `FakeTranscoder`, `setCookies`) y `test/support/files.ts` (`binary`, `storedFiles`).
+- `test/ffmpeg.spec.ts` usa el ffmpeg REAL (verifica que se borra el GPS); se saltea si no está instalado. Si ffmpeg no está en el PATH, pasá `FFMPEG_PATH`/`FFPROBE_PATH` al correr `npm test`.
 - **Toda funcionalidad nueva lleva tests**, incluidos los casos negativos de seguridad (sin sesión, usuario ajeno, entradas inválidas, límites).
 
 ## 10. Trampas conocidas

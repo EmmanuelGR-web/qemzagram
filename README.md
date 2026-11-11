@@ -3,7 +3,7 @@
 > **Conectá. Compartí. Disfrutá.**
 > Red social de mensajería **sin número de teléfono**: cada persona se identifica con un **tag** (`@tuusuario`), un correo verificado y una contraseña segura.
 
-Este repositorio contiene la **Fase 1** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real). Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
+Este repositorio contiene las **Fases 1 y 2** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real) y el contenido multimedia (fotos, videos, notas de voz, documentos y stickers). Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
 
 ---
 
@@ -23,10 +23,11 @@ Este repositorio contiene la **Fase 1** del proyecto: la base segura (cuentas, p
 | **Suspender** la cuenta temporalmente y **dar de baja** definitivamente | ✅ |
 | Menú móvil: **barra superior fija + panel desplegable** | ✅ |
 | Diseño rojo y blanco, responsive (celular, tablet, PC), instalable como app (PWA) | ✅ |
-| Fotos/videos/audios/archivos en el chat, stickers propios, estados, llamadas, personas cercanas, panel de soporte | 🔜 Fases 2 a 6 |
+| **Fase 2:** fotos (cámara o galería), videos, **notas de voz**, documentos y **stickers** (pack general + "Mis stickers"), con antivirus, sin metadatos, cifrados y con URLs firmadas | ✅ |
+| Estados, llamadas, personas cercanas, panel de soporte | 🔜 Fases 3 a 6 |
 | Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7 |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 22 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 45 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 
@@ -37,6 +38,8 @@ Este repositorio contiene la **Fase 1** del proyecto: la base segura (cuentas, p
 2. **Docker Desktop** (recomendado, para PostgreSQL y la bandeja de correos de prueba) → https://www.docker.com/products/docker-desktop
    *Si no querés usar Docker, hay un modo alternativo más abajo.*
 3. **VS Code** (ya lo tenés).
+4. **ffmpeg** (para notas de voz y videos). En Windows: `winget install Gyan.FFmpeg` y reiniciá la terminal. Sin ffmpeg la app funciona, pero voz y video quedan deshabilitados.
+5. *(Producción)* **ClamAV** (antivirus): obligatorio en el servidor; en desarrollo es opcional.
 
 ---
 

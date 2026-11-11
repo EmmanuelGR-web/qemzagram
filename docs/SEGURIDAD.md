@@ -4,7 +4,7 @@ Este documento dice **qué está implementado, qué no, y qué falta** para oper
 
 ## 1. Lo que hay que tener claro
 
-1. **No existe el software sin errores.** Lo que sí se puede hacer es reducir el riesgo con buenas prácticas, pruebas, revisión de dependencias, auditorías externas y monitoreo continuo. Esta base ya cuenta con 22 pruebas automáticas de seguridad y 0 vulnerabilidades conocidas en las dependencias de producción (`npm run audit`), pero eso se debe **repetir en cada cambio**.
+1. **No existe el software sin errores.** Lo que sí se puede hacer es reducir el riesgo con buenas prácticas, pruebas, revisión de dependencias, auditorías externas y monitoreo continuo. Esta base ya cuenta con 45 pruebas automáticas de seguridad y 0 vulnerabilidades conocidas en las dependencias de producción (`npm run audit`), pero eso se debe **repetir en cada cambio**.
 2. **Cumplir ISO 27001 no es una propiedad del código**: es la certificación de un *sistema de gestión de seguridad de la información* (políticas, roles, análisis de riesgos, capacitación, proveedores, respuesta a incidentes) que audita un ente certificador. El código puede ayudar con los controles técnicos, pero no certifica nada por sí solo.
 3. **Ninguna app puede garantizar que "no te multen"**. La responsabilidad legal depende de cómo la operés (políticas, consentimiento, atención de reclamos, notificación de incidentes). Consultá con un/a abogado/a especializado/a en datos personales.
 
@@ -21,9 +21,34 @@ Este documento dice **qué está implementado, qué no, y qué falta** para oper
 | **A07 Fallas de autenticación** | Política de contraseña fuerte; bloqueo de 15 min tras 5 intentos; límites por ruta (login 10/min, registro 5/min, recuperación 3/min); respuestas idénticas para usuario inexistente o contraseña errónea y mismo tiempo de respuesta; verificación de correo obligatoria; al restablecer contraseña se cierran todas las sesiones y se avisa por correo. |
 | **A08 Integridad** | Migraciones versionadas; pruebas automáticas que corren el flujo completo. |
 | **A09 Registro y monitoreo** | Tabla `audit_log` (registro, inicios de sesión fallidos/exitosos, bloqueos, reutilización de tokens, cambios de contraseña, pausa/baja). Los correos se enmascaran en los logs. No se registran contraseñas, tokens ni mensajes. |
-| **A10 SSRF** | La API no realiza peticiones a URLs provistas por usuarios. |
+| **A10 SSRF** | La API no realiza peticiones a URLs provistas por usuarios. ffmpeg solo puede leer archivos locales (`-protocol_whitelist file`). |
 
 Otros controles: protección **CSRF** (verificación de `Origin` + cookies `SameSite=Strict`), **límite de tamaño** de cuerpos y de imágenes (5 MB, 40 megapíxeles), **validación del contenido real** de las imágenes (no de la extensión), re-codificación a WebP (elimina EXIF/GPS y código oculto), nombres de archivo aleatorios, `X-Content-Type-Options: nosniff`.
+
+## 2.1 Archivos adjuntos y stickers (Fase 2)
+
+Cada subida al chat pasa por el mismo recorrido, en este orden:
+
+1. **Sesión, CSRF y membresía:** solo miembros de la conversación pueden subir o descargar; si no, "no encontrado".
+2. **Tamaño máximo por tipo:** imágenes 10 MB, documentos 25 MB, notas de voz 10 MB, videos 50 MB, stickers 5 MB.
+3. **Tipo REAL por contenido** ("números mágicos"), nunca por extensión ni por el `Content-Type` del navegador. Lista cerrada de formatos.
+4. **Antivirus ClamAV** (`clamd`, protocolo INSTREAM). **Falla cerrado**: si no responde, la subida se rechaza. Cada detección queda en `audit_log`. **Obligatorio en producción** (sin `CLAMAV_HOST` la API no arranca).
+5. **Re-codificación / limpieza:**
+   - Imágenes → WebP sin EXIF/GPS (también neutraliza archivos "políglota").
+   - Notas de voz → AAC/M4A y videos → H.264/MP4 con **ffmpeg**, quitando **todos** los metadatos (incluida la ubicación GPS que guardan los celulares). Sin ffmpeg, voz y video se rechazan: nunca se guardan sin limpiar. ffmpeg corre sin shell, con tiempo máximo y de a 2 procesos.
+   - Stickers propios → WebP 512×512 con transparencia.
+6. **Cifrado en reposo:** cada archivo se guarda cifrado con AES-256-GCM (clave derivada con HKDF de `MESSAGE_ENC_KEY`, datos asociados = id del adjunto), con nombre aleatorio (UUID) y **fuera** de la carpeta pública. El nombre original de los documentos también se guarda cifrado.
+7. **Descarga con URL firmada** (HMAC, vence en ≈1 h) **y además** sesión + membresía actual. Cabeceras: `nosniff`, CSP `sandbox`, caché `private`. Los documentos se fuerzan a descarga (`Content-Disposition: attachment`).
+
+**Documentos:** pdf, docx, xlsx, pptx, odt, ods, odp, zip, txt y csv. La extensión tiene que coincidir con el contenido y se rechazan los documentos de Office con macros. HTML, SVG, scripts y ejecutables se rechazan siempre porque **no están en la lista**.
+
+**Stickers:** el pack general son SVG estáticos de la propia web. Los stickers propios solo los ve su dueño; al enviarlos se manda una **copia** como adjunto del chat.
+
+**Límites honestos de la Fase 2:**
+- Los **documentos no se modifican**: un PDF o un Word puede conservar metadatos internos (autor, empresa) y un PDF puede contener JavaScript (por eso se descarga y nunca se abre dentro de la app). El antivirus es la defensa principal.
+- Un ZIP se valida solo por su firma: su contenido lo revisa el antivirus.
+- El almacenamiento es **disco local** detrás del puerto `BlobStorage`. Para producción falta el adaptador S3/R2 (con URLs prefirmadas del proveedor) y backups.
+- Los archivos se procesan **en memoria** (hasta 50 MB por subida, límite de peticiones por persona). Con mucho tráfico conviene una cola de trabajos.
 
 ## 3. Cómo funciona la recuperación de contraseña
 
@@ -39,7 +64,8 @@ Otros controles: protección **CSRF** (verificación de `Origin` + cookies `Same
 | CAPTCHA / anti-bots en registro | No (solo límites de peticiones) | Fase de endurecimiento |
 | Límite de peticiones compartido entre servidores | Es en memoria (1 instancia) | Redis al escalar |
 | CSP estricta con *nonce* en la web | Usa `'unsafe-inline'` por requisito de Next.js sin nonces | Middleware con nonce |
-| Análisis antivirus de archivos adjuntos | Aún no hay adjuntos | Fase 2 (ClamAV) |
+| Análisis antivirus de archivos adjuntos | ✅ Cliente ClamAV implementado y obligatorio en producción. En desarrollo puede quedar desactivado (aviso en consola) | Instalar `clamd` en el servidor |
+| Almacenamiento externo de archivos (S3/R2) | Disco local cifrado detrás del puerto `BlobStorage` | Adaptador S3/R2 al elegir proveedor |
 | Prueba de penetración externa | No realizada | **Obligatoria antes de lanzar** |
 | Moderación, denuncias y bajas por incumplimiento | Esquema preparado (`status: banned`, rol `support`) | Fase 6 |
 | Copias de seguridad y recuperación ante desastres | Depende del hosting elegido | Despliegue |
@@ -66,7 +92,8 @@ Esto es **orientación general, no asesoramiento legal**:
 - [ ] HTTPS en todo (HSTS), dominio propio, SPF/DKIM/DMARC para los correos
 - [ ] Base de datos gestionada con backups probados y cifrado en reposo
 - [ ] Secretos en un gestor; plan de rotación de claves
-- [ ] Almacenamiento externo para fotos y archivos
+- [ ] Almacenamiento externo para fotos y archivos (adaptador S3/R2 de `BlobStorage`)
+- [ ] ClamAV (`clamd`) y ffmpeg instalados en el servidor, con firmas antivirus actualizadas
 - [ ] 2FA y CAPTCHA activados
 - [ ] Términos, Privacidad y procedimiento de denuncias publicados
 - [ ] Registro de la base de datos ante la AAIP (si corresponde)

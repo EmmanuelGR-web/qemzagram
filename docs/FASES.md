@@ -2,13 +2,14 @@
 
 Construir todo de golpe sería la mejor receta para tener errores de seguridad. Por eso el proyecto avanza por fases: cada una se prueba y se revisa antes de seguir.
 
-## ✅ Fase 1 — Base segura (esta entrega)
+## ✅ Fase 1 — Base segura
 Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil con foto y portada (público/privado), agenda por tag, chats y grupos (hasta 10) en tiempo real con mensajes cifrados en la base, ajustes de apariencia y privacidad, pausar/dar de baja la cuenta, menú móvil fijo + desplegable.
 
-## Fase 2 — Contenido multimedia en el chat
-- Imágenes (cámara del celular o galería), videos, notas de voz y archivos adjuntos.
-- Almacenamiento externo (S3 o similar), **URLs firmadas con vencimiento**, límites de tamaño, validación de contenido real, **análisis antivirus** (ClamAV) y eliminación de metadatos.
-- **Stickers:** pack general incluido + creación de stickers propios (imagen → WebP 512×512) y sección "Mis stickers" por usuario.
+## ✅ Fase 2 — Contenido multimedia en el chat
+- ✅ Imágenes (cámara del celular o galería), videos, notas de voz y documentos adjuntos, con epígrafe opcional.
+- ✅ **URLs firmadas con vencimiento** + sesión y membresía, límites de tamaño, validación de contenido real, **antivirus ClamAV** (obligatorio en producción), eliminación de metadatos (ffmpeg para audio y video) y cifrado de los archivos en reposo.
+- ✅ **Stickers:** pack general de 12 stickers originales + stickers propios (imagen → WebP 512×512) en "Mis stickers".
+- 🔜 Pendiente para producción: adaptador de almacenamiento externo S3/R2 (hoy: disco local detrás del puerto `BlobStorage`). Ver `SEGURIDAD.md` §2.1.
 
 ## Fase 3 — Estados (24 horas)
 - Publicar foto/video/texto con vencimiento automático.

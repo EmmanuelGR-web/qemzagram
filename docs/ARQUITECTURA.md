@@ -10,7 +10,10 @@
                                        │
                         ┌──────────────┼───────────────┐
                         ▼              ▼               ▼
-                   PostgreSQL        Correo SMTP   Archivos (fotos)
+                   PostgreSQL        Correo SMTP   Archivos (fotos públicas de perfil
+                                                  + adjuntos CIFRADOS)
+                                       │
+                        ClamAV (antivirus) · ffmpeg (voz y video)
 ```
 
 - La **web** nunca habla con la API desde otro origen: Next reenvía `/api/*`. Así las cookies de sesión son *first-party* (`HttpOnly`, `SameSite=Strict`) y no hace falta abrir CORS.
@@ -28,7 +31,21 @@ Controller  →  Service  →  Repository  →  Base de datos
 | Controller | Recibir la petición, validar con Zod, devolver la respuesta | `chats.controller.ts` |
 | Service | Reglas de negocio y autorización | `chats.service.ts` (¿es miembro? ¿está en la agenda? ¿grupo lleno?) |
 | Repository | Única capa que habla SQL | `conversations.repository.ts` |
-| Puertos | Abstracciones de servicios externos | `MailPort`, `RealtimePublisher` |
+| Puertos | Abstracciones de servicios externos | `MailPort`, `RealtimePublisher`, `BlobStorage`, `AntivirusPort`, `MediaTranscoder` |
+
+## Multimedia (Fase 2)
+
+```
+subida ─► ChatsController (multer, límites) ─► ChatsService (¿miembro?)
+        ─► MediaProcessor: tamaño → tipo real → AntivirusPort → sharp / MediaTranscoder(ffmpeg)
+        ─► CryptoService.encryptBlob ─► BlobStorage.put ─► AttachmentsRepository (mensaje + adjunto en 1 transacción)
+        ─► RealtimePublisher (chat:message)
+
+descarga ─► MediaController GET /media/a/:id?exp&sig ─► MediaService: firma + vencimiento + ¿miembro actual?
+          ─► BlobStorage.get ─► decryptBlob ─► respuesta con rangos, nosniff y CSP sandbox
+```
+
+Para agregar un proveedor de almacenamiento (S3/R2) se crea otra clase que extienda `BlobStorage` y se cambia el `provide` en `storage.module.ts`; nada más cambia.
 
 ## Cómo se aplica SOLID
 
@@ -54,8 +71,10 @@ Controller  →  Service  →  Repository  →  Base de datos
 | `sessions` | Refresh tokens rotativos (solo hash), con detección de reutilización |
 | `contacts` | Agenda: quién agregó a quién |
 | `conversations` / `conversation_members` | Chats 1 a 1 y grupos (máx. 10), con rol admin/miembro |
-| `messages` | Mensajes con el cuerpo **cifrado** |
-| `audit_log` | Eventos de seguridad |
+| `messages` | Mensajes con el cuerpo **cifrado** (texto o epígrafe) y, si corresponde, el código de un sticker del pack general |
+| `attachments` | Adjuntos de mensajes (imagen, documento, voz, video, sticker enviado): tipo MIME del servidor, tamaño, dimensiones/duración, nombre original **cifrado** y clave del archivo cifrado |
+| `stickers` | "Mis stickers" de cada persona (archivo cifrado, visible solo para su dueño) |
+| `audit_log` | Eventos de seguridad (incluye archivos bloqueados por el antivirus) |
 
 ## Decisiones técnicas
 
