@@ -1,0 +1,54 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { and, count, desc, eq } from 'drizzle-orm';
+import { DB, type Database } from '../database.types';
+import { contacts, users, type UserRow } from '../schema';
+
+export interface ContactWithUser {
+  user: UserRow;
+  alias: string | null;
+  createdAt: Date;
+}
+
+@Injectable()
+export class ContactsRepository {
+  constructor(@Inject(DB) private readonly db: Database) {}
+
+  async listWithUsers(ownerId: string): Promise<ContactWithUser[]> {
+    const rows = await this.db
+      .select({ user: users, alias: contacts.alias, createdAt: contacts.createdAt })
+      .from(contacts)
+      .innerJoin(users, eq(users.id, contacts.contactId))
+      .where(and(eq(contacts.ownerId, ownerId), eq(users.status, 'active')))
+      .orderBy(desc(contacts.createdAt));
+    return rows;
+  }
+
+  async count(ownerId: string): Promise<number> {
+    const [row] = await this.db.select({ total: count() }).from(contacts).where(eq(contacts.ownerId, ownerId));
+    return row?.total ?? 0;
+  }
+
+  async exists(ownerId: string, contactId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ ownerId: contacts.ownerId })
+      .from(contacts)
+      .where(and(eq(contacts.ownerId, ownerId), eq(contacts.contactId, contactId)))
+      .limit(1);
+    return Boolean(row);
+  }
+
+  async add(ownerId: string, contactId: string, alias: string | null): Promise<void> {
+    await this.db
+      .insert(contacts)
+      .values({ ownerId, contactId, alias })
+      .onConflictDoUpdate({ target: [contacts.ownerId, contacts.contactId], set: { alias } });
+  }
+
+  async remove(ownerId: string, contactId: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(contacts)
+      .where(and(eq(contacts.ownerId, ownerId), eq(contacts.contactId, contactId)))
+      .returning({ ownerId: contacts.ownerId });
+    return rows.length > 0;
+  }
+}

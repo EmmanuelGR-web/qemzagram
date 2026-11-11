@@ -1,0 +1,158 @@
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+
+const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
+
+export const userStatusEnum = pgEnum('user_status', ['active', 'paused', 'banned', 'deleted']);
+export const userRoleEnum = pgEnum('user_role', ['user', 'support']);
+export const conversationTypeEnum = pgEnum('conversation_type', ['direct', 'group']);
+export const memberRoleEnum = pgEnum('member_role', ['admin', 'member']);
+export const emailTokenTypeEnum = pgEnum('email_token_type', ['verify', 'reset']);
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  tag: text('tag').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  displayName: text('display_name').notNull(),
+  bio: text('bio').notNull().default(''),
+  avatarUrl: text('avatar_url'),
+  coverUrl: text('cover_url'),
+  isPrivate: boolean('is_private').notNull().default(false),
+  role: userRoleEnum('role').notNull().default('user'),
+  status: userStatusEnum('status').notNull().default('active'),
+  emailVerifiedAt: ts('email_verified_at'),
+  failedLogins: integer('failed_logins').notNull().default(0),
+  lockedUntil: ts('locked_until'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Tokens de un solo uso (verificación de correo / restablecer contraseña). Solo se guarda su hash. */
+export const emailTokens = pgTable(
+  'email_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: emailTokenTypeEnum('type').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('email_tokens_user_idx').on(table.userId)],
+);
+
+/** Sesiones con refresh token rotativo. Solo se guarda el hash del token. */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    refreshHash: text('refresh_hash').notNull().unique(),
+    userAgent: text('user_agent'),
+    ip: text('ip'),
+    expiresAt: ts('expires_at').notNull(),
+    revokedAt: ts('revoked_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('sessions_user_idx').on(table.userId)],
+);
+
+/** Agenda: a quién agregó cada usuario (por tag). */
+export const contacts = pgTable(
+  'contacts',
+  {
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    alias: text('alias'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.ownerId, table.contactId] })],
+);
+
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: conversationTypeEnum('type').notNull(),
+  title: text('title'),
+  /** Para chats 1 a 1: ids ordenados "a:b". Evita duplicar la conversación. */
+  directKey: text('direct_key').unique(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const conversationMembers = pgTable(
+  'conversation_members',
+  {
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: memberRoleEnum('role').notNull().default('member'),
+    joinedAt: ts('joined_at').notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.conversationId, table.userId] }),
+    index('conversation_members_user_idx').on(table.userId),
+  ],
+);
+
+/** El cuerpo del mensaje se guarda cifrado (AES-256-GCM). Ver CryptoService. */
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    senderId: uuid('sender_id')
+      .notNull()
+      .references(() => users.id),
+    body: text('body').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('messages_conversation_created_idx').on(table.conversationId, table.createdAt)],
+);
+
+/** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id'),
+    action: text('action').notNull(),
+    ip: text('ip'),
+    meta: jsonb('meta').$type<Record<string, unknown>>(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('audit_log_user_idx').on(table.userId), index('audit_log_action_idx').on(table.action)],
+);
+
+export type UserRow = typeof users.$inferSelect;
+export type NewUserRow = typeof users.$inferInsert;
+export type SessionRow = typeof sessions.$inferSelect;
+export type EmailTokenRow = typeof emailTokens.$inferSelect;
+export type ConversationRow = typeof conversations.$inferSelect;
+export type MessageRow = typeof messages.$inferSelect;
