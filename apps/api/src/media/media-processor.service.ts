@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
-import { ALLOWED_FILE_EXTENSIONS, FILE_NAME_MAX_LENGTH, UPLOAD_MAX_BYTES, VOICE_MAX_SECONDS, type UploadKind } from '@qemzagram/shared';
+import { ALLOWED_FILE_EXTENSIONS, FILE_NAME_MAX_LENGTH, UPLOAD_MAX_BYTES, VIDEO_MAX_SECONDS, VOICE_MAX_SECONDS, type UploadKind } from '@qemzagram/shared';
 import sharp from 'sharp';
 import { AuditService } from '../common/audit.service';
 import { AntivirusPort, AntivirusUnavailableError } from './antivirus.port';
@@ -107,8 +107,9 @@ export class MediaProcessor {
       case 'audio':
         if (type.family !== 'audio-video') throw rejected('INVALID_MEDIA', 'El archivo no es un audio válido');
         return this.transcode(input.buffer, 'voice', VOICE_MAX_SECONDS);
-      default:
-        throw rejected('UNSUPPORTED_KIND', 'Ese tipo de adjunto todavía no está disponible');
+      case 'video':
+        if (type.family !== 'audio-video') throw rejected('INVALID_MEDIA', 'El archivo no es un video válido');
+        return this.transcode(input.buffer, 'video', VIDEO_MAX_SECONDS);
     }
   }
 

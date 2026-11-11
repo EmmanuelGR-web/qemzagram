@@ -1,8 +1,8 @@
 'use client';
 
-import { ALLOWED_FILE_EXTENSIONS, MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, VOICE_MAX_SECONDS, type MessageDto, type UploadKind } from '@qemzagram/shared';
+import { ALLOWED_FILE_EXTENSIONS, MESSAGE_MAX_LENGTH, UPLOAD_MAX_BYTES, VIDEO_MAX_SECONDS, VOICE_MAX_SECONDS, type MessageDto, type UploadKind } from '@qemzagram/shared';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, TrashIcon } from '@/components/icons';
+import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, TrashIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
 import { formatBytes, formatDuration, kindForFile } from '@/lib/messages';
@@ -33,6 +33,7 @@ export function Composer({ conversationId, onSent }: Props) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const documentInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const voice = useVoiceRecorder();
   const recording = voice.state === 'recording';
 
@@ -71,7 +72,7 @@ export function Composer({ conversationId, onSent }: Props) {
       return;
     }
     setError(null);
-    setPending({ file, kind, previewUrl: kind === 'image' ? URL.createObjectURL(file) : null });
+    setPending({ file, kind, previewUrl: kind === 'image' || kind === 'video' ? URL.createObjectURL(file) : null });
   }
 
   async function sendFile(caption: string) {
@@ -150,6 +151,9 @@ export function Composer({ conversationId, onSent }: Props) {
                   <button type="button" role="menuitem" className="menu-item" onClick={() => cameraInput.current?.click()}>
                     <CameraIcon /> Cámara
                   </button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => videoInput.current?.click()}>
+                    <VideoIcon /> Video
+                  </button>
                   <button type="button" role="menuitem" className="menu-item" onClick={() => galleryInput.current?.click()}>
                     <ImageIcon /> Galería
                   </button>
@@ -183,7 +187,8 @@ export function Composer({ conversationId, onSent }: Props) {
 
         {/* "capture" abre directamente la cámara en el celular; en la computadora abre el selector de archivos. */}
         <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />
-        <input ref={galleryInput} type="file" accept="image/*" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />
+        <input ref={videoInput} type="file" accept="video/*" capture="environment" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />
+        <input ref={galleryInput} type="file" accept="image/*,video/*" hidden onChange={(event) => { choose(event.target.files?.[0]); event.target.value = ''; }} />
         <input ref={documentInput} type="file" accept={DOCUMENT_ACCEPT} hidden onChange={(event) => { choose(event.target.files?.[0], 'file'); event.target.value = ''; }} />
       </form>
 
@@ -217,6 +222,8 @@ function AttachmentPreview(props: { pending: PendingFile; onCancel: () => void; 
     <Modal title={PREVIEW_TITLES[pending.kind]} onClose={busy ? () => undefined : onCancel}>
       <form onSubmit={submit} className="form">
         {pending.kind === 'image' && pending.previewUrl && <img className="attach-preview" src={pending.previewUrl} alt="Vista previa" />}
+        {pending.kind === 'video' && pending.previewUrl && <video className="attach-preview" src={pending.previewUrl} controls playsInline />}
+        {pending.kind === 'video' && <p className="hint">Máximo {VIDEO_MAX_SECONDS / 60} minutos. El video se procesa al enviarlo y puede tardar unos segundos.</p>}
         {pending.kind === 'file' && (
           <div className="file-chip">
             <span className="file-chip-icon"><FileIcon /></span>

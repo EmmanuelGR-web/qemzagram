@@ -30,6 +30,22 @@ function AttachmentView({ attachment, onMediaError }: { attachment: AttachmentDt
       return <ImageAttachment src={src} attachment={attachment} onMediaError={onMediaError} />;
     case 'file':
       return <FileAttachment src={src} attachment={attachment} />;
+    case 'video':
+      return (
+        <span className="bubble-media bubble-video">
+          {/* preload="metadata": solo baja la duración y el primer cuadro hasta que se aprieta play. */}
+          <video
+            src={src}
+            controls
+            playsInline
+            preload="metadata"
+            width={attachment.width ?? undefined}
+            height={attachment.height ?? undefined}
+            onError={onMediaError}
+            aria-label={`Video de ${formatDuration(attachment.durationMs)}`}
+          />
+        </span>
+      );
     case 'audio':
       return (
         <span className="voice-note">

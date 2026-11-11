@@ -6,7 +6,7 @@ import { createTestApp, signUp, type TestContext, type TestUser } from './suppor
 const WEBM = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from('grabacion-del-navegador')]);
 const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom'), Buffer.from('video-del-celular')]);
 
-describe('Adjuntos: notas de voz', () => {
+describe('Adjuntos: notas de voz y videos', () => {
   let ctx: TestContext;
   let ana: TestUser;
   let beto: TestUser;
@@ -50,6 +50,27 @@ describe('Adjuntos: notas de voz', () => {
   it('exige ser miembro del chat', async () => {
     const intruso = await signUp(ctx, 'intruso.voz', 'In#Voz2026-clave');
     await intruso.agent.post(`/chats/${chatId}/attachments`).field('kind', 'audio').attach('file', WEBM, 'x.webm').expect(404);
-    expect(MP4.length).toBeGreaterThan(0);
+    await intruso.agent.post(`/chats/${chatId}/attachments`).field('kind', 'video').attach('file', MP4, 'x.mp4').expect(404);
+  });
+
+  describe('videos', () => {
+    it('convierte el video a MP4 y lo entrega con sus dimensiones y duración', async () => {
+      const sent = await send('video', MP4, 'vacaciones.mov').expect(201);
+      const attachment = (sent.body as MessageDto).attachment;
+      expect(attachment).toMatchObject({ kind: 'video', mimeType: 'video/mp4', width: 640, height: 360, durationMs: 9000 });
+      expect(ctx.transcoder.calls.at(-1)).toBe('video');
+      const watched = await beto.agent.get(attachment?.url ?? '').set('Range', 'bytes=0-4').buffer(true).parse(binary).expect(206);
+      expect(watched.headers['content-type']).toBe('video/mp4');
+      expect((watched.body as Buffer).toString()).toBe('video');
+    });
+
+    it('rechaza imágenes o documentos enviados como video, y videos demasiado largos o pesados', async () => {
+      expect((await send('video', Buffer.from('%PDF-1.7'), 'peli.pdf').expect(400)).body.code).toBe('INVALID_MEDIA');
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+      expect((await send('video', png, 'foto.png').expect(400)).body.code).toBe('INVALID_MEDIA');
+      expect((await send('video', Buffer.concat([MP4, Buffer.from('MUY-LARGO')]), 'largo.mp4').expect(400)).body.code).toBe('MEDIA_TOO_LONG');
+      const heavy = Buffer.concat([MP4, Buffer.alloc(51 * 1024 * 1024)]);
+      expect((await send('video', heavy, 'pesado.mp4')).status).toBe(413);
+    });
   });
 });
