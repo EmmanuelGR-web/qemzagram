@@ -1,13 +1,17 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { startCallSchema, type CallDto, type CallJoinDto, type StartCallInput } from '@qemzagram/shared';
-import { CurrentUser, type AuthUser } from '../common/decorators';
+import { CurrentUser, Public, type AuthUser } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
+import { CallMediaPort, InvalidMediaEventError } from './call-media.port';
 import { CallsService } from './calls.service';
 
 @Controller()
 export class CallsController {
-  constructor(private readonly calls: CallsService) {}
+  constructor(
+    private readonly calls: CallsService,
+    private readonly media: CallMediaPort,
+  ) {}
 
   /** Llamar desde un chat (1 a 1 o grupo). */
   @Post('chats/:id/calls')
@@ -40,6 +44,27 @@ export class CallsController {
   @HttpCode(200)
   decline(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<CallDto> {
     return this.calls.decline(user.id, id);
+  }
+
+  /**
+   * Avisos del servidor de medios (LiveKit). Es PÚBLICA porque la llama LiveKit, no un navegador,
+   * pero cada aviso se acepta SOLO si su firma (hecha con nuestro secreto) y el hash del cuerpo son válidos.
+   * El cuerpo llega como texto crudo (ver configureApp) para poder verificar ese hash.
+   */
+  @Public()
+  @Post('calls/livekit-webhook')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 1200, ttl: 60_000 } })
+  async mediaWebhook(@Body() body: unknown, @Headers('authorization') authorization: string | undefined): Promise<{ ok: true }> {
+    if (typeof body !== 'string') throw new ForbiddenException({ code: 'INVALID_WEBHOOK', message: 'Aviso inválido' });
+    try {
+      const event = await this.media.parseEvent(body, authorization);
+      if (event) await this.calls.handleMediaEvent(event);
+    } catch (error) {
+      if (error instanceof InvalidMediaEventError) throw new ForbiddenException({ code: 'INVALID_WEBHOOK', message: 'Aviso inválido' });
+      throw error;
+    }
+    return { ok: true };
   }
 
   @Post('calls/:id/leave')

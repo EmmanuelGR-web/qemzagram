@@ -507,6 +507,12 @@ html[data-chatbg='waves'] .messages {
 .conversation-actions { display: flex; gap: 0.15rem; margin-left: auto; }
 .conversation-actions .icon-btn { color: var(--red-500); }
 .conversation-actions .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.call-banner { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.9rem; background: var(--red-50); border-bottom: 1px solid var(--red-100); }
+html[data-theme='dark'] .call-banner { background: color-mix(in srgb, var(--red-500) 14%, var(--surface)); border-color: var(--line); }
+.call-banner-icon { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--red-500); color: #fff; }
+.call-banner-icon svg { width: 18px; height: 18px; }
+.call-banner-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.call-banner-text small { color: var(--muted); }
 .call-log { display: inline-flex; align-items: center; gap: 0.55rem; font-weight: 600; }
 .call-log-icon { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in srgb, currentColor 14%, transparent); }
 .call-log-icon svg { width: 18px; height: 18px; }

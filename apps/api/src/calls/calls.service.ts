@@ -6,12 +6,14 @@ import { CallsRepository, type ParticipantWithUser } from '../database/repositor
 import { ConversationsRepository } from '../database/repositories/conversations.repository';
 import type { CallRow, ConversationRow } from '../database/schema';
 import { RealtimePublisher } from '../realtime/realtime.port';
-import { CallMediaPort } from './call-media.port';
+import { CallMediaPort, type CallMediaEvent } from './call-media.port';
 
 const NOT_FOUND = { code: 'CALL_NOT_FOUND', message: 'No encontramos esa llamada' };
 const CHAT_NOT_FOUND = { code: 'CHAT_NOT_FOUND', message: 'No encontramos esa conversación' };
 
 type EndReason = NonNullable<CallRow['endReason']>;
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Llamadas y videollamadas (1 a 1 y grupos de hasta 10).
@@ -118,6 +120,29 @@ export class CallsService {
       }
     }
     return ended;
+  }
+
+  /**
+   * Aviso VERIFICADO del servidor de medios: alguien salió de la sala sin pasar por la API
+   * (cerró el navegador, se quedó sin red) o la sala se cerró. Mantiene la base al día.
+   */
+  async handleMediaEvent(event: CallMediaEvent): Promise<void> {
+    // Las salas se llaman como la llamada (UUID); cualquier otra sala no es nuestra.
+    if (!UUID_REGEX.test(event.room) || (event.type === 'participant_left' && !UUID_REGEX.test(event.identity))) return;
+    const call = await this.calls.findById(event.room);
+    if (!call || call.status === 'ended') return;
+    const conversation = await this.conversations.findById(call.conversationId);
+    if (!conversation) return;
+
+    if (event.type === 'room_finished') {
+      await this.finish(call, conversation, call.status === 'active' ? 'completed' : 'cancelled');
+      return;
+    }
+    // Solo cuenta si esa identidad estaba ADENTRO de esta llamada (no se aceptan identidades ajenas).
+    if ((await this.calls.getParticipantState(call.id, event.identity)) !== 'joined') return;
+    await this.calls.setParticipantState(call.id, event.identity, 'left', new Date());
+    if (conversation.type === 'direct') await this.finish(call, conversation, call.status === 'active' ? 'completed' : 'cancelled');
+    else await this.settleGroup(call, conversation);
   }
 
   /** En un grupo: la llamada termina cuando no queda nadie adentro ni nadie por atender. */

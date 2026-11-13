@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
-import { CallMediaPort, type JoinTokenInput } from '../../src/calls/call-media.port';
+import { CallMediaPort, InvalidMediaEventError, type CallMediaEvent, type JoinTokenInput } from '../../src/calls/call-media.port';
 import { loadEnv } from '../../src/config/env';
 import { DB, type Database } from '../../src/database/database.types';
 import { MailPort } from '../../src/mail/mail.port';
@@ -98,6 +98,11 @@ export class FakeCallMedia extends CallMediaPort {
   }
   async removeParticipant(room: string, identity: string): Promise<void> {
     this.removed.push({ room, identity });
+  }
+  /** Firma de prueba: "Bearer firma-valida"; el cuerpo es el evento en JSON. */
+  async parseEvent(body: string, authorization: string | undefined): Promise<CallMediaEvent | null> {
+    if (authorization !== 'Bearer firma-valida') throw new InvalidMediaEventError('Firma inválida');
+    return JSON.parse(body) as CallMediaEvent;
   }
 }
 

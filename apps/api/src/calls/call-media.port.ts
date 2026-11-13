@@ -11,6 +11,16 @@ export interface JoinTokenInput {
   kind: CallKind;
 }
 
+/** Evento del servidor de medios que le importa a la API (ya verificado). */
+export type CallMediaEvent =
+  /** Una persona salió de la sala (cortó, cerró el navegador, se quedó sin conexión). */
+  | { type: 'participant_left'; room: string; identity: string }
+  /** La sala se cerró (quedó vacía). */
+  | { type: 'room_finished'; room: string };
+
+/** La firma del aviso no es válida: no viene de nuestro servidor de medios. */
+export class InvalidMediaEventError extends Error {}
+
 /**
  * Puerto del servidor de medios (SFU). Los servicios dependen de esta abstracción y no de LiveKit:
  * en los tests se usa una versión falsa y, si se cambia de proveedor, se agrega otra implementación.
@@ -28,4 +38,9 @@ export abstract class CallMediaPort {
   abstract closeRoom(room: string): Promise<void>;
   /** Saca a una persona de la sala (por ejemplo, si dejó de ser miembro del chat). */
   abstract removeParticipant(room: string, identity: string): Promise<void>;
+  /**
+   * Verifica la FIRMA de un aviso (webhook) del servidor de medios y lo traduce.
+   * Lanza `InvalidMediaEventError` si la firma no es válida; devuelve `null` si el evento no interesa.
+   */
+  abstract parseEvent(body: string, authorization: string | undefined): Promise<CallMediaEvent | null>;
 }

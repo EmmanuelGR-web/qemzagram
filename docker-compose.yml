@@ -35,6 +35,15 @@ services:
     container_name: qemzagram-livekit
     restart: unless-stopped
     command: --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+    environment:
+      # Avisa a la API cuando alguien sale de una sala (por ejemplo, si cerró el navegador).
+      LIVEKIT_CONFIG: |
+        webhook:
+          api_key: devkey
+          urls:
+            - http://host.docker.internal:4000/calls/livekit-webhook
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     ports:
       - '127.0.0.1:7880:7880' # señalización (WebSocket) y API
       - '127.0.0.1:7881:7881' # medios por TCP (respaldo)

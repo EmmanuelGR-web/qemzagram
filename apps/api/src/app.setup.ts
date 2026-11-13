@@ -1,5 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import { text } from 'express';
 import helmet from 'helmet';
 import type { AppEnv } from './config/env';
 import { SecureIoAdapter } from './realtime/secure-io.adapter';
@@ -20,6 +21,8 @@ export function configureApp(app: NestExpressApplication, env: AppEnv): void {
     }),
   );
   app.use(cookieParser());
+  // Avisos del servidor de llamadas: se leen como TEXTO crudo para verificar el hash de su firma.
+  app.use('/calls/livekit-webhook', text({ type: 'application/webhook+json', limit: '64kb' }));
   app.enableCors({
     origin: env.WEB_ORIGIN,
     credentials: true,

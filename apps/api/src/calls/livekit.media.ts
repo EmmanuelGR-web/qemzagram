@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
-import { CallMediaPort, type JoinTokenInput } from './call-media.port';
+import { AccessToken, RoomServiceClient, TrackSource, WebhookReceiver } from 'livekit-server-sdk';
+import { CallMediaPort, InvalidMediaEventError, type CallMediaEvent, type JoinTokenInput } from './call-media.port';
 
 /**
  * Vida del token para ENTRAR a la sala. Una vez conectado, LiveKit renueva la sesión solo,
@@ -12,6 +12,7 @@ const JOIN_TOKEN_TTL = '2m';
 export class LiveKitCallMedia extends CallMediaPort {
   private readonly logger = new Logger(LiveKitCallMedia.name);
   private readonly rooms: RoomServiceClient;
+  private readonly webhooks: WebhookReceiver;
 
   constructor(
     readonly url: string,
@@ -21,6 +22,23 @@ export class LiveKitCallMedia extends CallMediaPort {
   ) {
     super();
     this.rooms = new RoomServiceClient(apiUrl, apiKey, apiSecret);
+    this.webhooks = new WebhookReceiver(apiKey, apiSecret);
+  }
+
+  async parseEvent(body: string, authorization: string | undefined): Promise<CallMediaEvent | null> {
+    if (!authorization) throw new InvalidMediaEventError('Falta la firma');
+    let event;
+    try {
+      // Verifica la firma (JWT con nuestro secreto) Y que el hash del cuerpo coincida.
+      event = await this.webhooks.receive(body, authorization.replace(/^Bearer\s+/i, ''));
+    } catch {
+      throw new InvalidMediaEventError('Firma inválida');
+    }
+    const room = event.room?.name;
+    if (!room) return null;
+    if (event.event === 'participant_left' && event.participant?.identity) return { type: 'participant_left', room, identity: event.participant.identity };
+    if (event.event === 'room_finished') return { type: 'room_finished', room };
+    return null;
   }
 
   isAvailable(): boolean {
@@ -72,4 +90,7 @@ export class DisabledCallMedia extends CallMediaPort {
   }
   async closeRoom(): Promise<void> {}
   async removeParticipant(): Promise<void> {}
+  parseEvent(): Promise<CallMediaEvent | null> {
+    return Promise.reject(new InvalidMediaEventError('Llamadas deshabilitadas'));
+  }
 }

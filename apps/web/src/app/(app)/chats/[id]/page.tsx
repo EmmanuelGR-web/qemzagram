@@ -21,6 +21,9 @@ export default function ConversationPage() {
   const { user } = useAuth();
   const { upsert, remove } = useChats();
   const calls = useCalls();
+  // ¿Hay una llamada en curso en este chat en la que todavía no estoy?
+  const ongoing = calls.openCalls.find((call) => call.conversationId === id && call.status !== 'ended');
+  const canJoin = ongoing && calls.active?.call.id !== ongoing.id;
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -100,14 +103,27 @@ export default function ConversationPage() {
           </span>
         </button>
         <div className="conversation-actions">
-          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'audio')} disabled={Boolean(calls.active)} aria-label="Llamar" title="Llamar">
+          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'audio')} disabled={Boolean(calls.active || ongoing)} aria-label="Llamar" title="Llamar">
             <PhoneIcon />
           </button>
-          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'video')} disabled={Boolean(calls.active)} aria-label="Videollamada" title="Videollamada">
+          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'video')} disabled={Boolean(calls.active || ongoing)} aria-label="Videollamada" title="Videollamada">
             <VideoIcon />
           </button>
         </div>
       </header>
+
+      {canJoin && ongoing && (
+        <div className="call-banner">
+          <span className="call-banner-icon">{ongoing.kind === 'video' ? <VideoIcon /> : <PhoneIcon />}</span>
+          <span className="call-banner-text">
+            <strong>{ongoing.kind === 'video' ? 'Videollamada en curso' : 'Llamada en curso'}</strong>
+            <small>{ongoing.participants.filter((participant) => participant.state === 'joined').length} en la llamada</small>
+          </span>
+          <button className="btn btn-primary btn-sm" onClick={() => void calls.accept(ongoing)}>
+            Unirme
+          </button>
+        </div>
+      )}
 
       <div className="messages" role="log" aria-live="polite">
         {messages.length === 0 && <p className="messages-empty">Todavía no hay mensajes. ¡Escribí el primero!</p>}

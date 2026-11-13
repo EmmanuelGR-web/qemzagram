@@ -20,6 +20,8 @@ interface CallState {
   incoming: CallDto | null;
   /** Llamada en la que estás (conectada a la sala de medios). */
   active: ActiveCall | null;
+  /** Llamadas en curso en tus chats (para mostrar "Unirme" en los grupos). */
+  openCalls: CallDto[];
   /** Cambia cada vez que pasa algo en la sala (para que la pantalla se vuelva a dibujar). */
   revision: number;
   error: string | null;
@@ -46,6 +48,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [incoming, setIncoming] = useState<CallDto | null>(null);
   const [active, setActive] = useState<ActiveCall | null>(null);
+  const [openCalls, setOpenCalls] = useState<CallDto[]>([]);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
@@ -55,6 +58,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
   activeRef.current = active;
 
   const myId = user?.id;
+
+  /** Agrega/actualiza una llamada en curso, o la quita si terminó. */
+  const track = useCallback((call: CallDto) => {
+    setOpenCalls((current) => {
+      const others = current.filter((item) => item.id !== call.id);
+      return call.status === 'ended' ? others : [...others, call];
+    });
+  }, []);
   const isInvited = useCallback((call: CallDto) => call.status === 'ringing' && call.participants.some((p) => p.user.id === myId && p.state === 'invited'), [myId]);
 
   /** Desconecta la sala local (sin avisar a la API). */
@@ -70,16 +81,21 @@ export function CallProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!myId) return;
     api<CallDto[]>('/calls/active')
-      .then((calls) => setIncoming(calls.find(isInvited) ?? null))
+      .then((calls) => {
+        setOpenCalls(calls);
+        setIncoming(calls.find(isInvited) ?? null);
+      })
       .catch(() => undefined);
   }, [myId, isInvited]);
 
   useRealtimeEvent('call:incoming', (call) => {
+    track(call);
     if (activeRef.current?.call.id === call.id) return;
     setIncoming(call);
   });
 
   useRealtimeEvent('call:updated', (call) => {
+    track(call);
     setIncoming((current) => (current?.id === call.id && !isInvited(call) ? null : current));
     const current = activeRef.current;
     if (current?.call.id !== call.id) return;
@@ -125,6 +141,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           if (activeRef.current?.room === room) void leaveCall();
         });
 
+      track(join.call);
       const session = { call: join.call, room };
       activeRef.current = session;
       setActive(session);
@@ -195,6 +212,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     () => ({
       incoming,
       active,
+      openCalls,
       revision,
       error,
       audioBlocked,
@@ -222,7 +240,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       },
       clearError: () => setError(null),
     }),
-    [incoming, active, revision, error, audioBlocked, start, accept, decline, leaveCall],
+    [incoming, active, openCalls, revision, error, audioBlocked, start, accept, decline, leaveCall],
   );
 
   // Al cerrar sesión o salir de la app, se corta.
