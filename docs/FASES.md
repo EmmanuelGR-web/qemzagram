@@ -11,9 +11,12 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ **Stickers:** pack general de 12 stickers originales + stickers propios (imagen → WebP 512×512) en "Mis stickers".
 - 🔜 Pendiente para producción: adaptador de almacenamiento externo S3/R2 (hoy: disco local detrás del puerto `BlobStorage`). Ver `SEGURIDAD.md` §2.1.
 
-## Fase 3 — Estados (24 horas)
-- Publicar foto/video/texto con vencimiento automático.
-- Control de **quién puede verlos y quién no** (lista de excluidos / solo agenda), ya reservado en Ajustes.
+## ✅ Fase 3 — Estados (24 horas)
+- ✅ Estados de **texto** (con fondos de una lista cerrada), **foto** y **video** (hasta 60 s), con epígrafe opcional. Cámara dentro de la app o galería.
+- ✅ **Vencimiento automático a las 24 h:** toda consulta ignora lo vencido y una limpieza periódica borra filas y archivos.
+- ✅ **Quién puede verlos:** "Mi agenda", "Mi agenda excepto…" o "Solo compartir con…" (siempre limitado a contactos **mutuos**). El cambio rige al instante, también para los estados ya publicados.
+- ✅ **Visto por** (solo lo ve el dueño), borrar un estado antes de que venza, aviso en **tiempo real** a la audiencia y borrado inmediato al dar de baja la cuenta.
+- Texto cifrado en la base y archivos cifrados en reposo, con el mismo pipeline de seguridad de la Fase 2. Ver `SEGURIDAD.md` §2.2.
 
 ## Fase 4 — Llamadas y videollamadas
 - **WebRTC**: llamadas 1 a 1 entre dos usuarios.

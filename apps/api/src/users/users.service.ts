@@ -6,6 +6,7 @@ import { toLimitedUser, toPublicUser, toSelfUser } from '../common/mappers';
 import { ContactsRepository } from '../database/repositories/contacts.repository';
 import { SessionsRepository } from '../database/repositories/sessions.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { StatusesService } from '../statuses/statuses.service';
 import type { ImageKind } from '../storage/storage.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -18,6 +19,7 @@ export class UsersService {
     private readonly crypto: CryptoService,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
+    private readonly statuses: StatusesService,
   ) {}
 
   async getMe(userId: string): Promise<SelfUser> {
@@ -92,6 +94,8 @@ export class UsersService {
       passwordHash: await this.crypto.hashPassword(this.crypto.randomToken(32)),
     });
     await this.sessions.revokeAllForUser(userId);
+    // Los estados (y sus archivos cifrados) se borran ya, sin esperar a que venzan.
+    await this.statuses.removeAllFor(userId);
     await this.audit.log('account.deleted', { userId });
   }
 

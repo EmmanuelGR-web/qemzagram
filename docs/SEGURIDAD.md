@@ -50,6 +50,21 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - El almacenamiento es **disco local** detrás del puerto `BlobStorage`. Para producción falta el adaptador S3/R2 (con URLs prefirmadas del proveedor) y backups.
 - Los archivos se procesan **en memoria** (hasta 50 MB por subida, límite de peticiones por persona). Con mucho tráfico conviene una cola de trabajos.
 
+## 2.2 Estados de 24 horas (Fase 3)
+
+- **Quién los ve:** solo contactos **mutuos** (vos agregaste a la persona y ella te agregó), con cuenta activa, y según tu privacidad: "Mi agenda", "Mi agenda excepto…" o "Solo compartir con…". Las listas solo admiten personas de tu agenda. La regla se aplica **dentro de cada consulta SQL** (no se traen datos para filtrarlos después) y se evalúa con la configuración **actual**: si sacás a alguien, deja de ver tus estados al instante, aunque tenga una URL firmada.
+- **Vencimiento:** toda consulta exige `expires_at > ahora`; una limpieza cada 5 minutos borra las filas vencidas y sus archivos cifrados. Un estado vencido nunca se muestra aunque la limpieza no haya corrido.
+- **Contenido:** el texto/epígrafe se cifra con AES-256-GCM (datos asociados = `status:<id>`). Las fotos y videos pasan por el **mismo** recorrido de la §2.1 (tipo real → antivirus → re-codificación sin metadatos → cifrado en reposo). Los videos de estado duran como máximo 60 segundos. Hasta 30 estados vigentes por persona.
+- **Archivos:** se sirven en `/media/e/:id` con URL firmada **y** permiso verificado en cada pedido; si no, "no encontrado".
+- **Visto por:** solo el dueño consulta quién vio cada estado; para cualquier otra persona el estado "no existe". Las vistas se borran junto con el estado.
+- **Tiempo real:** el aviso `status:changed` lleva solo el id del dueño (nunca contenido ni URLs) y se envía solo a su audiencia.
+- **Baja de cuenta:** los estados y sus archivos se borran en el momento.
+
+**Límites honestos de la Fase 3:**
+- Quien puede ver un estado puede sacarle una captura de pantalla o grabarlo: ninguna app puede impedirlo del todo.
+- El registro de "visto" lo informa el navegador de quien mira (solo para estados que ya puede ver): sirve como indicación, no como prueba.
+- La limpieza corre dentro de la API. Si la API está apagada, los archivos vencidos quedan en disco (cifrados e inaccesibles) hasta que vuelva a arrancar.
+
 ## 3. Cómo funciona la recuperación de contraseña
 
 - **Por correo:** `¿Olvidé mi contraseña?` → enlace de un solo uso, válido 1 hora → nueva contraseña (con la misma política) → todas las sesiones se cierran.

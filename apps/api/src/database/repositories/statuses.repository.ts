@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, eq, exists, gt, inArray, lte, ne, not, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, gt, inArray, lte, ne, not, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { DB, type Database } from '../database.types';
-import { contacts, statusAudienceMembers, statuses, users, type NewStatusRow, type StatusRow, type UserRow } from '../schema';
+import { contacts, statusAudienceMembers, statuses, statusViews, users, type NewStatusRow, type StatusRow, type UserRow } from '../schema';
 
 export interface StatusWithOwner {
   status: StatusRow;
@@ -76,6 +76,53 @@ export class StatusesRepository {
       )
       .limit(1);
     return row?.status;
+  }
+
+  /** Un estado vigente SOLO si pertenece a `ownerId`. */
+  async findOwnedActive(id: string, ownerId: string, now: Date): Promise<StatusRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(statuses)
+      .where(and(eq(statuses.id, id), eq(statuses.ownerId, ownerId), gt(statuses.expiresAt, now)))
+      .limit(1);
+    return row;
+  }
+
+  /** Registra que alguien vio un estado (una sola vez por persona; las repeticiones se ignoran). */
+  async markViewed(statusId: string, viewerId: string): Promise<void> {
+    await this.db.insert(statusViews).values({ statusId, viewerId }).onConflictDoNothing();
+  }
+
+  /** De esta lista de estados, cuáles ya vio `viewerId`. */
+  async viewedIds(viewerId: string, statusIds: string[]): Promise<Set<string>> {
+    if (statusIds.length === 0) return new Set();
+    const rows = await this.db
+      .select({ id: statusViews.statusId })
+      .from(statusViews)
+      .where(and(eq(statusViews.viewerId, viewerId), inArray(statusViews.statusId, statusIds)));
+    return new Set(rows.map((row) => row.id));
+  }
+
+  /** Cantidad de vistas por estado (solo cuentan cuentas activas). */
+  async viewCounts(statusIds: string[]): Promise<Map<string, number>> {
+    if (statusIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ id: statusViews.statusId, total: count() })
+      .from(statusViews)
+      .innerJoin(users, eq(users.id, statusViews.viewerId))
+      .where(and(inArray(statusViews.statusId, statusIds), eq(users.status, 'active')))
+      .groupBy(statusViews.statusId);
+    return new Map(rows.map((row) => [row.id, row.total]));
+  }
+
+  /** Quién vio un estado, del más reciente al más viejo (solo cuentas activas). */
+  listViews(statusId: string): Promise<{ user: UserRow; viewedAt: Date }[]> {
+    return this.db
+      .select({ user: users, viewedAt: statusViews.viewedAt })
+      .from(statusViews)
+      .innerJoin(users, eq(users.id, statusViews.viewerId))
+      .where(and(eq(statusViews.statusId, statusId), eq(users.status, 'active')))
+      .orderBy(desc(statusViews.viewedAt));
   }
 
   /**

@@ -220,6 +220,21 @@ export const statuses = pgTable(
   (table) => [index('statuses_owner_expires_idx').on(table.ownerId, table.expiresAt), index('statuses_expires_idx').on(table.expiresAt)],
 );
 
+/** Quién vio cada estado (solo lo consulta su dueño). Se borra junto con el estado. */
+export const statusViews = pgTable(
+  'status_views',
+  {
+    statusId: uuid('status_id')
+      .notNull()
+      .references(() => statuses.id, { onDelete: 'cascade' }),
+    viewerId: uuid('viewer_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    viewedAt: ts('viewed_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.statusId, table.viewerId] }), index('status_views_viewer_idx').on(table.viewerId)],
+);
+
 /**
  * Listas de privacidad de los estados: "excepto" y "solo con". Se guardan las dos por separado
  * para que cambiar de opción no pierda la otra lista.

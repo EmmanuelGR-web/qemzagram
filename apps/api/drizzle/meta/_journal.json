@@ -29,6 +29,13 @@
       "when": 1794576216336,
       "tag": "0003_privacidad_estados",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794576688987,
+      "tag": "0004_vistas_estados",
+      "breakpoints": true
     }
   ]
 }

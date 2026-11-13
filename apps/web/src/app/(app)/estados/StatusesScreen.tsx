@@ -6,14 +6,17 @@ import { Avatar } from '@/components/Avatar';
 import { CameraCapture, cameraSupported } from '@/components/chat/CameraCapture';
 import { CameraIcon, ImageIcon, LockIcon, PlusIcon, VideoIcon } from '@/components/icons';
 import { MediaStatusEditor } from '@/components/status/MediaStatusEditor';
+import { OwnStatusFooter } from '@/components/status/OwnStatusFooter';
 import { StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { TextStatusEditor } from '@/components/status/TextStatusEditor';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useRealtimeEvent } from '@/lib/realtime-context';
 import { statusPreview, timeAgo } from '@/lib/statuses';
 
-type Viewing = { type: 'mine' } | { type: 'feed'; position: number };
+/** Se sigue a la persona por id (no por posición): la lista puede reordenarse mientras se mira. */
+type Viewing = { type: 'mine' } | { type: 'feed'; userId: string };
 
 export function StatusesScreen() {
   const { user } = useAuth();
@@ -44,13 +47,40 @@ export function StatusesScreen() {
     return () => clearInterval(timer);
   }, [load]);
 
+  // Alguien de la agenda publicó o borró un estado (o cambió quién los ve): se actualiza la lista.
+  useRealtimeEvent('status:changed', () => void load());
+
   const closeViewer = useCallback(() => setViewing(null), []);
+
+  /** Marca como visto (una vez) y lo refleja en la lista sin esperar a recargar. */
+  const markSeen = useCallback((status: StatusDto) => {
+    if (status.viewed) return;
+    setOverview((previous) =>
+      previous
+        ? {
+            ...previous,
+            feed: previous.feed.map((item) => {
+              if (item.user.id !== status.ownerId) return item;
+              const statuses = item.statuses.map((entry) => (entry.id === status.id ? { ...entry, viewed: true } : entry));
+              return { ...item, statuses, allViewed: statuses.every((entry) => entry.viewed) };
+            }),
+          }
+        : previous,
+    );
+    // Si falla (por ejemplo, el estado ya venció) no pasa nada: es solo el registro de "visto".
+    void api(`/statuses/${status.id}/view`, { method: 'POST' }).catch(() => undefined);
+  }, []);
 
   if (!user) return null;
   const mine = overview?.mine ?? [];
   const feed = overview?.feed ?? [];
   const lastMine = mine.at(-1);
-  const current = viewing?.type === 'feed' ? feed[viewing.position] : undefined;
+  const position = viewing?.type === 'feed' ? feed.findIndex((item) => item.user.id === viewing.userId) : -1;
+  const current = position >= 0 ? feed[position] : undefined;
+  const openFeed = (index: number) => {
+    const item = feed[index];
+    setViewing(item ? { type: 'feed', userId: item.user.id } : null);
+  };
 
   /** Cámara dentro de la app; si el navegador no la permite, se usa el selector del sistema. */
   function openCamera(mode: 'photo' | 'video') {
@@ -62,6 +92,10 @@ export function StatusesScreen() {
     setEditor(false);
     setFile(null);
     setOverview((previous) => (previous ? { ...previous, mine: [...previous.mine, status] } : previous));
+  }
+
+  function deleted(id: string) {
+    setOverview((previous) => (previous ? { ...previous, mine: previous.mine.filter((status) => status.id !== id) } : previous));
   }
 
   return (
@@ -116,12 +150,12 @@ export function StatusesScreen() {
         <p className="empty-card">Todavía no hay estados de tu agenda. Solo ves los de personas que agregaste y que también te agregaron.</p>
       )}
       <ul className="status-list">
-        {feed.map((item, position) => {
+        {feed.map((item, index) => {
           const last = item.statuses.at(-1);
           return (
             <li key={item.user.id}>
-              <button className="status-person" onClick={() => setViewing({ type: 'feed', position })}>
-                <span className="status-ring" data-state="new">
+              <button className="status-person" onClick={() => openFeed(index)} aria-label={`Ver estados de ${item.user.displayName}${item.allViewed ? '' : ' (nuevos)'}`}>
+                <span className="status-ring" data-state={item.allViewed ? 'seen' : 'new'}>
                   <Avatar user={item.user} size={52} />
                 </span>
                 <span className="status-person-body">
@@ -156,16 +190,26 @@ export function StatusesScreen() {
       )}
 
       {viewing?.type === 'mine' && mine.length > 0 && (
-        <StatusViewer user={user} statuses={mine} onClose={closeViewer} onFinished={closeViewer} onMediaError={() => void load()} />
+        <StatusViewer
+          user={user}
+          statuses={mine}
+          onClose={closeViewer}
+          onFinished={closeViewer}
+          onMediaError={() => void load()}
+          footer={(status, pause) => <OwnStatusFooter status={status} pause={pause} onDeleted={deleted} />}
+        />
       )}
-      {current && viewing?.type === 'feed' && (
+      {current && (
         <StatusViewer
           key={current.user.id}
           user={current.user}
           statuses={current.statuses}
+          // Arranca en el primer estado que todavía no viste.
+          startIndex={Math.max(0, current.statuses.findIndex((status) => !status.viewed))}
           onClose={closeViewer}
-          onFinished={() => setViewing(viewing.position + 1 < feed.length ? { type: 'feed', position: viewing.position + 1 } : null)}
-          onPreviousUser={viewing.position > 0 ? () => setViewing({ type: 'feed', position: viewing.position - 1 }) : undefined}
+          onFinished={() => openFeed(position + 1)}
+          onPreviousUser={position > 0 ? () => openFeed(position - 1) : undefined}
+          onShown={markSeen}
           onMediaError={() => void load()}
         />
       )}

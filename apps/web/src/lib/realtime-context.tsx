@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 import { api } from './api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
-const EVENTS = ['chat:message', 'chat:created', 'chat:updated'] as const satisfies readonly (keyof ServerToClientEvents)[];
+const EVENTS = ['chat:message', 'chat:created', 'chat:updated', 'status:changed'] as const satisfies readonly (keyof ServerToClientEvents)[];
 
 type Handler<E extends keyof ServerToClientEvents> = ServerToClientEvents[E];
 type AnyListener = (payload: unknown) => void;

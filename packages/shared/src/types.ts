@@ -105,12 +105,24 @@ export interface StatusDto {
   media: StatusMediaDto | null;
   createdAt: string;
   expiresAt: string;
+  /** ¿Ya lo viste? (los propios cuentan como vistos). */
+  viewed: boolean;
+  /** Cuántas personas lo vieron: SOLO en tus propios estados (`null` en los ajenos). */
+  viewCount: number | null;
+}
+
+/** Una persona que vio tu estado (solo lo consulta el dueño). */
+export interface StatusViewDto {
+  user: PublicUser;
+  viewedAt: string;
 }
 
 /** Estados vigentes de una persona de tu agenda, del más viejo al más nuevo. */
 export interface StatusFeedItemDto {
   user: PublicUser;
   statuses: StatusDto[];
+  /** true si ya viste todos sus estados vigentes. */
+  allViewed: boolean;
 }
 
 export interface StatusOverviewDto {
@@ -144,4 +156,6 @@ export interface ServerToClientEvents {
   'chat:message': (message: MessageDto) => void;
   'chat:created': (conversation: ConversationDto) => void;
   'chat:updated': (conversation: ConversationDto) => void;
+  /** Alguien de tu agenda publicó o borró un estado (o cambió quién los ve): volvé a pedir la lista. */
+  'status:changed': (payload: { ownerId: string }) => void;
 }

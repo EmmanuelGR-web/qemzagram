@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -12,6 +12,7 @@ import {
   type StatusDto,
   type StatusOverviewDto,
   type StatusPrivacyDto,
+  type StatusViewDto,
   type UpdateStatusPrivacyInput,
 } from '@qemzagram/shared';
 import type { Request, Response } from 'express';
@@ -74,6 +75,26 @@ export class StatusesController {
   ): Promise<StatusDto> {
     if (!file?.buffer?.length) throw new BadRequestException({ code: 'FILE_REQUIRED', message: 'Elegí una foto o un video' });
     return this.statuses.createMedia(user.id, body, { buffer: file.buffer, originalName: 'estado' });
+  }
+
+  /** Marca un estado como visto (sin cuerpo: el id va en la ruta y quien mira sale de la sesión). */
+  @Post(':id/view')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 240, ttl: 60_000 } })
+  markViewed(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.statuses.markViewed(user.id, id);
+  }
+
+  /** "Visto por" (solo el dueño). */
+  @Get(':id/views')
+  listViews(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<StatusViewDto[]> {
+    return this.statuses.listViews(user.id, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.statuses.remove(user.id, id);
   }
 }
 

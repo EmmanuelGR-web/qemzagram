@@ -47,6 +47,19 @@ descarga ─► MediaController GET /media/a/:id?exp&sig ─► MediaService: fi
 
 Para agregar un proveedor de almacenamiento (S3/R2) se crea otra clase que extienda `BlobStorage` y se cambia el `provide` en `storage.module.ts`; nada más cambia.
 
+## Estados (Fase 3)
+
+```
+publicar ─► StatusesController (Zod / multer) ─► StatusesService (cupo de 30)
+         ─► [foto/video] MediaProcessor ─► encryptBlob ─► BlobStorage ─► StatusesRepository
+         ─► RealtimePublisher "status:changed" (solo a la audiencia; sin contenido)
+
+ver      ─► StatusesRepository.listFeed / findVisible: la regla "contacto mutuo + privacidad + no vencido"
+            va DENTRO de la consulta SQL
+archivo  ─► StatusMediaController GET /media/e/:id?exp&sig ─► firma + findVisible ─► readBlob
+limpieza ─► StatusesCleanupService (cada 5 min): borra vencidos y sus archivos
+```
+
 ## Cómo se aplica SOLID
 
 - **S — Responsabilidad única:** cada clase hace una cosa (`CryptoService` cifra, `AuditService` audita, `StorageService` procesa imágenes, `TokensService` firma tokens).
@@ -74,6 +87,9 @@ Para agregar un proveedor de almacenamiento (S3/R2) se crea otra clase que extie
 | `messages` | Mensajes con el cuerpo **cifrado** (texto o epígrafe) y, si corresponde, el código de un sticker del pack general |
 | `attachments` | Adjuntos de mensajes (imagen, documento, voz, video, sticker enviado): tipo MIME del servidor, tamaño, dimensiones/duración, nombre original **cifrado** y clave del archivo cifrado |
 | `stickers` | "Mis stickers" de cada persona (archivo cifrado, visible solo para su dueño) |
+| `statuses` | Estados de 24 h: tipo (texto/foto/video), texto **cifrado**, fondo, archivo cifrado y `expires_at` |
+| `status_audience_members` | Listas de privacidad de los estados ("excepto" y "solo con"); la opción elegida vive en `users.status_audience` |
+| `status_views` | Quién vio cada estado (solo lo consulta el dueño; se borra con el estado) |
 | `audit_log` | Eventos de seguridad (incluye archivos bloqueados por el antivirus) |
 
 ## Decisiones técnicas

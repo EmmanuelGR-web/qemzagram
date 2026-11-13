@@ -3,7 +3,7 @@
 > **Conectá. Compartí. Disfrutá.**
 > Red social de mensajería **sin número de teléfono**: cada persona se identifica con un **tag** (`@tuusuario`), un correo verificado y una contraseña segura.
 
-Este repositorio contiene las **Fases 1 y 2** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real) y el contenido multimedia (fotos, videos, notas de voz, documentos y stickers). Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
+Este repositorio contiene las **Fases 1, 2 y 3** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real), el contenido multimedia (fotos, videos, notas de voz, documentos y stickers) y los estados de 24 horas. Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
 
 ---
 
@@ -24,10 +24,11 @@ Este repositorio contiene las **Fases 1 y 2** del proyecto: la base segura (cuen
 | Menú móvil: **barra superior fija + panel desplegable** | ✅ |
 | Diseño rojo y blanco, responsive (celular, tablet, PC), instalable como app (PWA) | ✅ |
 | **Fase 2:** fotos (cámara o galería), videos, **notas de voz**, documentos y **stickers** (pack general + "Mis stickers"), con antivirus, sin metadatos, cifrados y con URLs firmadas | ✅ |
-| Estados, llamadas, personas cercanas, panel de soporte | 🔜 Fases 3 a 6 |
+| **Fase 3:** **estados de 24 h** (texto, foto o video), con "Mi agenda / excepto… / solo con…", "Visto por" y avisos en tiempo real | ✅ |
+| Llamadas, personas cercanas, panel de soporte | 🔜 Fases 4 a 6 |
 | Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7 |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 45 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 68 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 
@@ -85,6 +86,7 @@ Abrí **http://localhost:3000** en el navegador.
 3. Iniciá sesión.
 4. Creá una segunda cuenta en una ventana de incógnito. Agregá su `@tag` en **Contactos**, abrí un chat y escribí: ¡llega en tiempo real!
 5. Probá **Ajustes** (tema, texto, fondo) y **Perfil** (foto y portada).
+6. **Estados:** con las dos cuentas agregadas **mutuamente**, publicá un estado desde **Estados** y miralo desde la otra cuenta. Probá "Quién puede ver mis estados" y el botón **Visto por**.
 
 > Desde el celular (misma red Wi-Fi): abrí `http://IP-DE-TU-PC:3000`. Para producción necesitás HTTPS (ver sección 8).
 
@@ -116,6 +118,9 @@ qemzagram/
 │  │  │  ├─ users/            ← perfil, fotos, privacidad, pausar/eliminar cuenta
 │  │  │  ├─ contacts/         ← agenda por tag
 │  │  │  ├─ chats/            ← conversaciones, grupos, mensajes
+│  │  │  ├─ media/            ← adjuntos: antivirus, ffmpeg, URLs firmadas
+│  │  │  ├─ stickers/         ← "Mis stickers"
+│  │  │  ├─ statuses/         ← estados de 24 h, privacidad, "visto por", limpieza
 │  │  │  ├─ realtime/         ← entrega en tiempo real (WebSocket)
 │  │  │  ├─ mail/             ← envío de correos (puerto + implementación SMTP)
 │  │  │  ├─ storage/          ← procesamiento seguro de imágenes
