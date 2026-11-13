@@ -20,6 +20,8 @@ export const memberRoleEnum = pgEnum('member_role', ['admin', 'member']);
 export const emailTokenTypeEnum = pgEnum('email_token_type', ['verify', 'reset']);
 export const attachmentKindEnum = pgEnum('attachment_kind', ['image', 'file', 'audio', 'video', 'sticker']);
 export const statusKindEnum = pgEnum('status_kind', ['text', 'image', 'video']);
+export const statusAudienceEnum = pgEnum('status_audience', ['contacts', 'except', 'only']);
+export const statusAudienceListEnum = pgEnum('status_audience_list', ['except', 'only']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -31,6 +33,8 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   coverUrl: text('cover_url'),
   isPrivate: boolean('is_private').notNull().default(false),
+  /** Quién puede ver mis estados (ver `status_audience_members`). */
+  statusAudience: statusAudienceEnum('status_audience').notNull().default('contacts'),
   role: userRoleEnum('role').notNull().default('user'),
   status: userStatusEnum('status').notNull().default('active'),
   emailVerifiedAt: ts('email_verified_at'),
@@ -214,6 +218,24 @@ export const statuses = pgTable(
     expiresAt: ts('expires_at').notNull(),
   },
   (table) => [index('statuses_owner_expires_idx').on(table.ownerId, table.expiresAt), index('statuses_expires_idx').on(table.expiresAt)],
+);
+
+/**
+ * Listas de privacidad de los estados: "excepto" y "solo con". Se guardan las dos por separado
+ * para que cambiar de opción no pierda la otra lista.
+ */
+export const statusAudienceMembers = pgTable(
+  'status_audience_members',
+  {
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    list: statusAudienceListEnum('list').notNull(),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+  },
+  (table) => [primaryKey({ columns: [table.ownerId, table.list, table.memberId] })],
 );
 
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */

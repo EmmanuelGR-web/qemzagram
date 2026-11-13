@@ -498,5 +498,13 @@ html[data-chatbg='waves'] .messages {
 .status-viewer-foot .btn { color: #fff; border-color: rgba(255, 255, 255, 0.25); }
 .status-viewer-foot svg { width: 18px; height: 18px; }
 .status-views { display: grid; gap: 0.2rem; }
+.status-privacy-link { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0; border: 0; background: none; color: var(--red-500); font-size: 0.85rem; font-weight: 600; }
+.status-privacy-link svg { width: 16px; height: 16px; }
+.privacy-options { display: grid; gap: 0.45rem; }
+.privacy-option { display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.75rem 0.85rem; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.privacy-option:has(input:checked) { border-color: var(--red-500); background: color-mix(in srgb, var(--red-500) 7%, transparent); }
+.privacy-option input, .pick-item input[type='checkbox'] { width: 18px; height: 18px; margin: 0.15rem 0 0; flex: none; accent-color: var(--red-500); box-shadow: none; }
+.privacy-option > span { display: flex; flex-direction: column; }
+.privacy-option small { color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

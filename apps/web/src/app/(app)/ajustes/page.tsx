@@ -1,9 +1,10 @@
 'use client';
 
-import type { SelfUser } from '@qemzagram/shared';
+import type { SelfUser, StatusPrivacyDto } from '@qemzagram/shared';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Modal } from '@/components/Modal';
+import { AUDIENCE_LABELS, StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { usePreferences, type ChatBackground, type FontSize, type ThemeMode } from '@/lib/preferences';
@@ -37,12 +38,26 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
   );
 }
 
+function privacySummary(privacy: StatusPrivacyDto): string {
+  if (privacy.audience === 'except') return `${AUDIENCE_LABELS.except} (${privacy.except.length} ${privacy.except.length === 1 ? 'persona excluida' : 'personas excluidas'})`;
+  if (privacy.audience === 'only') return `${AUDIENCE_LABELS.only} (${privacy.only.length} ${privacy.only.length === 1 ? 'persona' : 'personas'})`;
+  return 'Mi agenda (personas que también te agregaron)';
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, setUser, logout } = useAuth();
   const { preferences, update } = usePreferences();
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<'pause' | 'delete' | null>(null);
+  const [statusPrivacy, setStatusPrivacy] = useState<StatusPrivacyDto | null>(null);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+
+  useEffect(() => {
+    api<StatusPrivacyDto>('/statuses/privacy')
+      .then(setStatusPrivacy)
+      .catch(() => undefined);
+  }, []);
 
   if (!user) return null;
 
@@ -100,13 +115,26 @@ export default function SettingsPage() {
             <span />
           </label>
         </div>
-        <div className="setting disabled">
+        <div className="setting">
           <div>
             <strong>Quién puede ver mis estados</strong>
-            <small>Disponible cuando se active la función Estados.</small>
+            <small>
+              {statusPrivacy ? privacySummary(statusPrivacy) : 'Tu agenda, o la parte de tu agenda que elijas.'}
+            </small>
           </div>
-          <span className="badge">Próximamente</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setPrivacyOpen(true)}>
+            Cambiar
+          </button>
         </div>
+        {privacyOpen && (
+          <StatusPrivacyDialog
+            onClose={() => setPrivacyOpen(false)}
+            onSaved={(saved) => {
+              setStatusPrivacy(saved);
+              setPrivacyOpen(false);
+            }}
+          />
+        )}
         {error && <p className="alert alert-error">{error}</p>}
       </section>
 

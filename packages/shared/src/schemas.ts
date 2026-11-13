@@ -6,6 +6,8 @@ import {
   GROUP_MAX_MEMBERS,
   GROUP_TITLE_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
+  CONTACTS_MAX,
+  STATUS_AUDIENCES,
   STATUS_BACKGROUNDS,
   STATUS_MEDIA_KINDS,
   STATUS_TEXT_MAX_LENGTH,
@@ -160,6 +162,15 @@ export const createMediaStatusSchema = z
   })
   .strict();
 
+/** Privacidad de los estados: opción + las dos listas (por tag, solo personas de tu agenda). */
+export const updateStatusPrivacySchema = z
+  .object({
+    audience: z.enum(STATUS_AUDIENCES, { message: 'Opción de privacidad inválida' }),
+    except: z.array(tagLookupSchema).max(CONTACTS_MAX),
+    only: z.array(tagLookupSchema).max(CONTACTS_MAX),
+  })
+  .strict();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
@@ -170,3 +181,4 @@ export type SendAttachmentInput = z.infer<typeof sendAttachmentSchema>;
 export type SendStickerInput = z.infer<typeof sendStickerSchema>;
 export type CreateTextStatusInput = z.infer<typeof createTextStatusSchema>;
 export type CreateMediaStatusInput = z.infer<typeof createMediaStatusSchema>;
+export type UpdateStatusPrivacyInput = z.infer<typeof updateStatusPrivacySchema>;

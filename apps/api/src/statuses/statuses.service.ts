@@ -10,12 +10,15 @@ import {
   type StatusDto,
   type StatusFeedItemDto,
   type StatusOverviewDto,
+  type StatusPrivacyDto,
+  type UpdateStatusPrivacyInput,
 } from '@qemzagram/shared';
 import { randomUUID } from 'node:crypto';
 import { CryptoService } from '../common/crypto.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
+import { ContactsRepository } from '../database/repositories/contacts.repository';
 import { StatusesRepository } from '../database/repositories/statuses.repository';
-import type { StatusRow } from '../database/schema';
+import type { StatusRow, UserRow } from '../database/schema';
 import { MediaProcessor, type UploadedInput } from '../media/media-processor.service';
 import { MediaUrlService } from '../media/media-url.service';
 import { MediaService, type ServedFile } from '../media/media.service';
@@ -36,6 +39,7 @@ export const statusAad = (id: string) => `status:${id}`;
 export class StatusesService {
   constructor(
     private readonly statuses: StatusesRepository,
+    private readonly contacts: ContactsRepository,
     private readonly crypto: CryptoService,
     private readonly processor: MediaProcessor,
     private readonly media: MediaService,
@@ -120,6 +124,25 @@ export class StatusesService {
     return { data, mimeType: row.mimeType, disposition: 'inline', fileName: `estado-${row.id.slice(0, 8)}` };
   }
 
+  async getPrivacy(userId: string): Promise<StatusPrivacyDto> {
+    const rows = await this.statuses.getPrivacy(userId);
+    return { audience: rows.audience, except: rows.except.map(toVisibleUser), only: rows.only.map(toVisibleUser) };
+  }
+
+  /** Guarda la privacidad. Las listas solo admiten personas de TU agenda (por tag). */
+  async updatePrivacy(userId: string, input: UpdateStatusPrivacyInput): Promise<StatusPrivacyDto> {
+    const agenda = new Map((await this.contacts.listWithUsers(userId)).map((row) => [row.user.tag, row.user.id]));
+    const resolve = (tags: string[]): string[] => {
+      const ids = [...new Set(tags)].map((tag) => agenda.get(tag));
+      if (ids.some((id) => id === undefined)) {
+        throw new BadRequestException({ code: 'INVALID_MEMBERS', message: 'Solo podés elegir personas de tu agenda' });
+      }
+      return ids as string[];
+    };
+    await this.statuses.setPrivacy(userId, input.audience, { except: resolve(input.except), only: resolve(input.only) });
+    return this.getPrivacy(userId);
+  }
+
   toDto(row: StatusRow): StatusDto {
     return {
       id: row.id,
@@ -149,6 +172,10 @@ export class StatusesService {
       return UNAVAILABLE_BODY;
     }
   }
+}
+
+function toVisibleUser(user: UserRow) {
+  return user.isPrivate ? toLimitedUser(user) : toPublicUser(user);
 }
 
 function isBackground(value: string | null): value is StatusBackground {

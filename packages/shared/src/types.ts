@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
 
@@ -118,6 +118,18 @@ export interface StatusOverviewDto {
   mine: StatusDto[];
   /** Estados de tu agenda que podés ver, empezando por los más recientes. */
   feed: StatusFeedItemDto[];
+}
+
+/**
+ * Quién puede ver mis estados. Las dos listas se guardan por separado: cambiar de opción no borra la otra.
+ * Siempre se limita a personas de tu agenda que también te agregaron.
+ */
+export interface StatusPrivacyDto {
+  audience: StatusAudience;
+  /** "Mi agenda excepto…" */
+  except: PublicUser[];
+  /** "Solo compartir con…" */
+  only: PublicUser[];
 }
 
 export interface ApiErrorBody {

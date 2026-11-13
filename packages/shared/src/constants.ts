@@ -100,3 +100,7 @@ export const STATUS_MEDIA_KINDS = ['image', 'video'] as const;
 /** Fondos de los estados de texto (lista cerrada: el cliente no puede mandar CSS arbitrario). */
 export const STATUS_BACKGROUNDS = ['rojo', 'vino', 'coral', 'noche', 'rosa'] as const;
 export type StatusBackground = (typeof STATUS_BACKGROUNDS)[number];
+
+/** Quién puede ver mis estados: toda mi agenda, mi agenda menos algunas personas, o solo algunas personas. */
+export const STATUS_AUDIENCES = ['contacts', 'except', 'only'] as const;
+export type StatusAudience = (typeof STATUS_AUDIENCES)[number];

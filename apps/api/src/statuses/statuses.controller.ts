@@ -1,15 +1,18 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import {
   createMediaStatusSchema,
   createTextStatusSchema,
+  updateStatusPrivacySchema,
   STATUS_TEXT_MAX_LENGTH,
   UPLOAD_MAX_BYTES,
   type CreateMediaStatusInput,
   type CreateTextStatusInput,
   type StatusDto,
   type StatusOverviewDto,
+  type StatusPrivacyDto,
+  type UpdateStatusPrivacyInput,
 } from '@qemzagram/shared';
 import type { Request, Response } from 'express';
 import { memoryStorage } from 'multer';
@@ -39,6 +42,18 @@ export class StatusesController {
   @Get()
   overview(@CurrentUser() user: AuthUser): Promise<StatusOverviewDto> {
     return this.statuses.overview(user.id);
+  }
+
+  /** Quién puede ver mis estados. */
+  @Get('privacy')
+  getPrivacy(@CurrentUser() user: AuthUser): Promise<StatusPrivacyDto> {
+    return this.statuses.getPrivacy(user.id);
+  }
+
+  @Put('privacy')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  updatePrivacy(@CurrentUser() user: AuthUser, @Body(new ZodPipe(updateStatusPrivacySchema)) body: UpdateStatusPrivacyInput): Promise<StatusPrivacyDto> {
+    return this.statuses.updatePrivacy(user.id, body);
   }
 
   @Post('text')

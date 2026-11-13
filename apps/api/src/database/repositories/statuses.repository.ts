@@ -1,12 +1,21 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, eq, exists, gt, inArray, lte, ne, sql, type SQL } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { and, asc, count, eq, exists, gt, inArray, lte, ne, not, or, sql, type SQL } from 'drizzle-orm';
+import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { DB, type Database } from '../database.types';
-import { contacts, statuses, users, type NewStatusRow, type StatusRow, type UserRow } from '../schema';
+import { contacts, statusAudienceMembers, statuses, users, type NewStatusRow, type StatusRow, type UserRow } from '../schema';
 
 export interface StatusWithOwner {
   status: StatusRow;
   owner: UserRow;
+}
+
+export type StatusAudience = UserRow['statusAudience'];
+type AudienceList = (typeof statusAudienceMembers.$inferSelect)['list'];
+
+export interface StatusPrivacyRows {
+  audience: StatusAudience;
+  except: UserRow[];
+  only: UserRow[];
 }
 
 /** Cuántos estados vencidos se borran por vuelta de limpieza (evita transacciones enormes). */
@@ -74,14 +83,44 @@ export class StatusesRepository {
    * Misma regla que `visibleTo`, vista desde el lado del dueño.
    */
   async listAudienceIds(ownerId: string): Promise<string[]> {
+    const owner = await this.db.select({ audience: users.statusAudience }).from(users).where(eq(users.id, ownerId)).limit(1);
+    const audience = owner[0]?.audience;
+    if (!audience) return [];
     const back = alias(contacts, 'back');
     const rows = await this.db
       .select({ id: users.id })
       .from(contacts)
       .innerJoin(users, eq(users.id, contacts.contactId))
       .innerJoin(back, and(eq(back.ownerId, contacts.contactId), eq(back.contactId, ownerId)))
-      .where(and(eq(contacts.ownerId, ownerId), eq(users.status, 'active')));
+      .where(and(eq(contacts.ownerId, ownerId), eq(users.status, 'active'), this.audienceAllows(audience, sql`${ownerId}`, contacts.contactId)));
     return rows.map((row) => row.id);
+  }
+
+  /** Opción de privacidad + las dos listas, solo con personas que siguen en la agenda y activas. */
+  async getPrivacy(ownerId: string): Promise<StatusPrivacyRows> {
+    const [owner] = await this.db.select({ audience: users.statusAudience }).from(users).where(eq(users.id, ownerId)).limit(1);
+    const members = await this.db
+      .select({ list: statusAudienceMembers.list, user: users })
+      .from(statusAudienceMembers)
+      .innerJoin(users, eq(users.id, statusAudienceMembers.memberId))
+      .innerJoin(contacts, and(eq(contacts.ownerId, ownerId), eq(contacts.contactId, statusAudienceMembers.memberId)))
+      .where(and(eq(statusAudienceMembers.ownerId, ownerId), eq(users.status, 'active')))
+      .orderBy(asc(users.displayName));
+    return {
+      audience: owner?.audience ?? 'contacts',
+      except: members.filter((row) => row.list === 'except').map((row) => row.user),
+      only: members.filter((row) => row.list === 'only').map((row) => row.user),
+    };
+  }
+
+  /** Reemplaza la opción y las dos listas en una sola transacción. */
+  async setPrivacy(ownerId: string, audience: StatusAudience, lists: Record<AudienceList, string[]>): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.update(users).set({ statusAudience: audience, updatedAt: new Date() }).where(eq(users.id, ownerId));
+      await tx.delete(statusAudienceMembers).where(eq(statusAudienceMembers.ownerId, ownerId));
+      const rows = (Object.entries(lists) as [AudienceList, string[]][]).flatMap(([list, ids]) => ids.map((memberId) => ({ ownerId, list, memberId })));
+      if (rows.length > 0) await tx.insert(statusAudienceMembers).values(rows);
+    });
   }
 
   /** Borra un estado propio y devuelve su clave de almacenamiento (`null` si no tenía archivo). */
@@ -120,8 +159,11 @@ export class StatusesRepository {
   }
 
   /**
-   * Regla de visibilidad: el dueño está activo, se agregaron MUTUAMENTE a la agenda
-   * (el dueño eligió a quien mira y quien mira sigue al dueño).
+   * Regla de visibilidad (consultas que unen `statuses` con su dueño en `users`):
+   *  1. el dueño está activo;
+   *  2. se agregaron MUTUAMENTE a la agenda;
+   *  3. la privacidad del dueño lo permite: toda la agenda / la agenda menos la lista "excepto" /
+   *     solo la lista "solo con". Se evalúa con la configuración ACTUAL: un cambio rige al instante.
    */
   private visibleTo(viewerId: string): SQL {
     const ownerAddedViewer = this.db
@@ -132,8 +174,27 @@ export class StatusesRepository {
       .select({ one: sql`1` })
       .from(contacts)
       .where(and(eq(contacts.ownerId, viewerId), eq(contacts.contactId, statuses.ownerId)));
-    const condition = and(eq(users.status, 'active'), exists(ownerAddedViewer), exists(viewerAddedOwner));
+    const audience = or(
+      eq(users.statusAudience, 'contacts'),
+      and(eq(users.statusAudience, 'except'), not(exists(this.inList('except', statuses.ownerId, sql`${viewerId}`)))),
+      and(eq(users.statusAudience, 'only'), exists(this.inList('only', statuses.ownerId, sql`${viewerId}`))),
+    );
+    const condition = and(eq(users.status, 'active'), exists(ownerAddedViewer), exists(viewerAddedOwner), audience);
     if (!condition) throw new Error('Condición de visibilidad vacía');
     return condition;
+  }
+
+  /** La misma regla de privacidad, cuando ya se conoce la opción del dueño. */
+  private audienceAllows(audience: StatusAudience, ownerId: SQL | AnyPgColumn, viewerId: SQL | AnyPgColumn): SQL {
+    if (audience === 'contacts') return sql`true`;
+    const listed = exists(this.inList(audience, ownerId, viewerId));
+    return audience === 'only' ? listed : not(listed);
+  }
+
+  private inList(list: AudienceList, ownerId: SQL | AnyPgColumn, memberId: SQL | AnyPgColumn) {
+    return this.db
+      .select({ one: sql`1` })
+      .from(statusAudienceMembers)
+      .where(and(eq(statusAudienceMembers.ownerId, ownerId), eq(statusAudienceMembers.list, list), eq(statusAudienceMembers.memberId, memberId)));
   }
 }

@@ -4,8 +4,9 @@ import { STATUS_VIDEO_MAX_SECONDS, type StatusDto, type StatusOverviewDto } from
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/Avatar';
 import { CameraCapture, cameraSupported } from '@/components/chat/CameraCapture';
-import { CameraIcon, ImageIcon, PlusIcon, VideoIcon } from '@/components/icons';
+import { CameraIcon, ImageIcon, LockIcon, PlusIcon, VideoIcon } from '@/components/icons';
 import { MediaStatusEditor } from '@/components/status/MediaStatusEditor';
+import { StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { TextStatusEditor } from '@/components/status/TextStatusEditor';
 import { api, errorMessage } from '@/lib/api';
@@ -22,6 +23,7 @@ export function StatusesScreen() {
   const [editor, setEditor] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [camera, setCamera] = useState<'photo' | 'video' | null>(null);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const galleryInput = useRef<HTMLInputElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
@@ -66,6 +68,10 @@ export function StatusesScreen() {
     <div className="page">
       <h1>Estados</h1>
       <p className="muted">Fotos, videos y textos que desaparecen a las 24 horas.</p>
+      <button className="status-privacy-link" onClick={() => setPrivacyOpen(true)}>
+        <LockIcon /> Quién puede ver mis estados
+      </button>
+      {privacyOpen && <StatusPrivacyDialog onClose={() => setPrivacyOpen(false)} onSaved={() => setPrivacyOpen(false)} />}
 
       <section className="card status-mine">
         <button className="status-person" onClick={() => (mine.length > 0 ? setViewing({ type: 'mine' }) : setEditor(true))}>
