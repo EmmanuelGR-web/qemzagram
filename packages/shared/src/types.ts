@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, CALL_END_REASONS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
 
@@ -144,6 +144,40 @@ export interface StatusPrivacyDto {
   only: PublicUser[];
 }
 
+export type CallKind = (typeof CALL_KINDS)[number];
+export type CallStatus = (typeof CALL_STATUSES)[number];
+export type CallEndReason = (typeof CALL_END_REASONS)[number];
+export type CallParticipantState = (typeof CALL_PARTICIPANT_STATES)[number];
+
+export interface CallParticipantDto {
+  user: PublicUser;
+  state: CallParticipantState;
+}
+
+/** Una llamada (1 a 1 o de grupo). Solo la ven los miembros de la conversación. */
+export interface CallDto {
+  id: string;
+  conversationId: string;
+  conversationType: ConversationType;
+  /** Nombre del grupo (null en los chats 1 a 1). */
+  title: string | null;
+  kind: CallKind;
+  status: CallStatus;
+  startedBy: string;
+  participants: CallParticipantDto[];
+  createdAt: string;
+  answeredAt: string | null;
+  endedAt: string | null;
+  endReason: CallEndReason | null;
+}
+
+/** Para entrar a la sala de medios: token de vida corta y dirección del servidor de llamadas. */
+export interface CallJoinDto {
+  call: CallDto;
+  token: string;
+  url: string;
+}
+
 export interface ApiErrorBody {
   statusCode: number;
   message: string;
@@ -158,4 +192,8 @@ export interface ServerToClientEvents {
   'chat:updated': (conversation: ConversationDto) => void;
   /** Alguien de tu agenda publicó o borró un estado (o cambió quién los ve): volvé a pedir la lista. */
   'status:changed': (payload: { ownerId: string }) => void;
+  /** Te están llamando. */
+  'call:incoming': (call: CallDto) => void;
+  /** Cambió el estado de una llamada en la que participás (alguien atendió, cortó, terminó…). */
+  'call:updated': (call: CallDto) => void;
 }

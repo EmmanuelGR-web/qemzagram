@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/app.setup';
+import { CallMediaPort, type JoinTokenInput } from '../../src/calls/call-media.port';
 import { loadEnv } from '../../src/config/env';
 import { DB, type Database } from '../../src/database/database.types';
 import { MailPort } from '../../src/mail/mail.port';
@@ -78,11 +79,34 @@ export class FakeTranscoder extends MediaTranscoder {
   }
 }
 
+/** Servidor de medios falso: no hay LiveKit; registra tokens emitidos y salas cerradas. */
+export class FakeCallMedia extends CallMediaPort {
+  readonly url = 'wss://medios.prueba';
+  available = true;
+  tokens: JoinTokenInput[] = [];
+  closedRooms: string[] = [];
+  removed: { room: string; identity: string }[] = [];
+  isAvailable(): boolean {
+    return this.available;
+  }
+  async createJoinToken(input: JoinTokenInput): Promise<string> {
+    this.tokens.push(input);
+    return `token-falso.${input.room}.${input.identity}.${input.kind}`;
+  }
+  async closeRoom(room: string): Promise<void> {
+    this.closedRooms.push(room);
+  }
+  async removeParticipant(room: string, identity: string): Promise<void> {
+    this.removed.push({ room, identity });
+  }
+}
+
 export interface TestContext {
   app: NestExpressApplication;
   mail: FakeMail;
   antivirus: FakeAntivirus;
   transcoder: FakeTranscoder;
+  callMedia: FakeCallMedia;
   db: Database;
   close: () => Promise<void>;
 }
@@ -103,6 +127,7 @@ export async function createTestApp(): Promise<TestContext> {
   const mail = new FakeMail();
   const antivirus = new FakeAntivirus();
   const transcoder = new FakeTranscoder();
+  const callMedia = new FakeCallMedia();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MailPort)
     .useValue(mail)
@@ -110,11 +135,13 @@ export async function createTestApp(): Promise<TestContext> {
     .useValue(antivirus)
     .overrideProvider(MediaTranscoder)
     .useValue(transcoder)
+    .overrideProvider(CallMediaPort)
+    .useValue(callMedia)
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app, loadEnv());
   await app.init();
-  return { app, mail, antivirus, transcoder, db: app.get(DB), close: () => app.close() };
+  return { app, mail, antivirus, transcoder, callMedia, db: app.get(DB), close: () => app.close() };
 }
 
 export interface TestUser {

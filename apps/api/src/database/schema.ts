@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -8,6 +9,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -21,6 +23,10 @@ export const emailTokenTypeEnum = pgEnum('email_token_type', ['verify', 'reset']
 export const attachmentKindEnum = pgEnum('attachment_kind', ['image', 'file', 'audio', 'video', 'sticker']);
 export const statusKindEnum = pgEnum('status_kind', ['text', 'image', 'video']);
 export const statusAudienceEnum = pgEnum('status_audience', ['contacts', 'except', 'only']);
+export const callKindEnum = pgEnum('call_kind', ['audio', 'video']);
+export const callStatusEnum = pgEnum('call_status', ['ringing', 'active', 'ended']);
+export const callEndReasonEnum = pgEnum('call_end_reason', ['completed', 'missed', 'declined', 'cancelled', 'failed']);
+export const callParticipantStateEnum = pgEnum('call_participant_state', ['invited', 'joined', 'left', 'declined']);
 export const statusAudienceListEnum = pgEnum('status_audience_list', ['except', 'only']);
 
 export const users = pgTable('users', {
@@ -253,6 +259,51 @@ export const statusAudienceMembers = pgTable(
   (table) => [primaryKey({ columns: [table.ownerId, table.list, table.memberId] })],
 );
 
+/**
+ * Llamadas y videollamadas. Los medios (audio/video) NUNCA pasan por la API ni se guardan:
+ * viajan por el servidor de llamadas (LiveKit). Acá solo queda el registro (quién, cuándo, cuánto).
+ * Una conversación tiene como máximo UNA llamada en curso (índice único parcial).
+ */
+export const calls = pgTable(
+  'calls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    startedBy: uuid('started_by')
+      .notNull()
+      .references(() => users.id),
+    kind: callKindEnum('kind').notNull(),
+    status: callStatusEnum('status').notNull().default('ringing'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    answeredAt: ts('answered_at'),
+    endedAt: ts('ended_at'),
+    endReason: callEndReasonEnum('end_reason'),
+  },
+  (table) => [
+    index('calls_conversation_idx').on(table.conversationId, table.createdAt),
+    uniqueIndex('calls_one_open_per_conversation').on(table.conversationId).where(sql`${table.status} <> 'ended'`),
+    index('calls_open_idx').on(table.status).where(sql`${table.status} <> 'ended'`),
+  ],
+);
+
+export const callParticipants = pgTable(
+  'call_participants',
+  {
+    callId: uuid('call_id')
+      .notNull()
+      .references(() => calls.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    state: callParticipantStateEnum('state').notNull().default('invited'),
+    joinedAt: ts('joined_at'),
+    leftAt: ts('left_at'),
+  },
+  (table) => [primaryKey({ columns: [table.callId, table.userId] }), index('call_participants_user_idx').on(table.userId)],
+);
+
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
 export const auditLog = pgTable(
   'audit_log',
@@ -278,3 +329,5 @@ export type NewAttachmentRow = typeof attachments.$inferInsert;
 export type StickerRow = typeof stickers.$inferSelect;
 export type StatusRow = typeof statuses.$inferSelect;
 export type NewStatusRow = typeof statuses.$inferInsert;
+export type CallRow = typeof calls.$inferSelect;
+export type CallParticipantRow = typeof callParticipants.$inferSelect;

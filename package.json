@@ -17,7 +17,7 @@
     "dev:web": "npm run dev -w @qemzagram/web",
     "test": "npm run test -w @qemzagram/api",
     "typecheck": "npm run typecheck -w @qemzagram/api && npm run typecheck -w @qemzagram/web",
-    "db:up": "docker compose up -d db mailpit",
+    "db:up": "docker compose up -d db mailpit livekit",
     "db:down": "docker compose down",
     "db:generate": "npm run db:generate -w @qemzagram/api",
     "audit": "npm audit --omit=dev",

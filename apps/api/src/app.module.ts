@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { CallsModule } from './calls/calls.module';
 import { ChatsModule } from './chats/chats.module';
 import { CommonModule } from './common/common.module';
 import { OriginGuard } from './common/origin.guard';
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
     StickersModule,
     ChatsModule,
     StatusesModule,
+    CallsModule,
     RealtimeModule,
   ],
   controllers: [HealthController],

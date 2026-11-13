@@ -33,9 +33,27 @@ const envSchema = z.object({
   FFMPEG_PATH: z.string().default('ffmpeg'),
   FFPROBE_PATH: z.string().default('ffprobe'),
   RUN_MIGRATIONS: z.enum(['true', 'false']).default('true'),
+  /** Servidor de llamadas LiveKit: dirección que usa el NAVEGADOR (ws:// en desarrollo, wss:// en producción). */
+  LIVEKIT_URL: z.string().url().default('ws://localhost:7880'),
+  /** Dirección que usa la API para hablar con LiveKit (si se omite, se deriva de LIVEKIT_URL). */
+  LIVEKIT_API_URL: z.string().url().optional(),
+  /** Credenciales de LiveKit. Vacías = llamadas deshabilitadas. */
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === 'production' && !env.CLAMAV_HOST) {
     context.addIssue({ code: 'custom', path: ['CLAMAV_HOST'], message: 'En producción el antivirus (ClamAV) es obligatorio' });
+  }
+  if (Boolean(env.LIVEKIT_API_KEY) !== Boolean(env.LIVEKIT_API_SECRET)) {
+    context.addIssue({ code: 'custom', path: ['LIVEKIT_API_SECRET'], message: 'LIVEKIT_API_KEY y LIVEKIT_API_SECRET van juntos' });
+  }
+  if (env.NODE_ENV === 'production' && env.LIVEKIT_API_SECRET !== undefined) {
+    if (env.LIVEKIT_API_SECRET.length < 32 || env.LIVEKIT_API_KEY === 'devkey') {
+      context.addIssue({ code: 'custom', path: ['LIVEKIT_API_SECRET'], message: 'En producción usá credenciales de LiveKit propias (secreto de 32+ caracteres)' });
+    }
+    if (!env.LIVEKIT_URL.startsWith('wss://')) {
+      context.addIssue({ code: 'custom', path: ['LIVEKIT_URL'], message: 'En producción LiveKit tiene que usar wss://' });
+    }
   }
 });
 

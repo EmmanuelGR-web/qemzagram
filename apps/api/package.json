@@ -26,6 +26,7 @@
     "cookie-parser": "^1.4.7",
     "drizzle-orm": "^0.45.4",
     "helmet": "^8.0.0",
+    "livekit-server-sdk": "2.19.2",
     "nodemailer": "^10.5.0",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.2",

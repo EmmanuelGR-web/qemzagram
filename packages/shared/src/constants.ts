@@ -104,3 +104,15 @@ export type StatusBackground = (typeof STATUS_BACKGROUNDS)[number];
 /** Quién puede ver mis estados: toda mi agenda, mi agenda menos algunas personas, o solo algunas personas. */
 export const STATUS_AUDIENCES = ['contacts', 'except', 'only'] as const;
 export type StatusAudience = (typeof STATUS_AUDIENCES)[number];
+
+/* ---------- Fase 4: llamadas y videollamadas ---------- */
+
+export const CALL_KINDS = ['audio', 'video'] as const;
+export const CALL_STATUSES = ['ringing', 'active', 'ended'] as const;
+/** Por qué terminó: atendida y cortada, nadie atendió, la rechazaron, quien llamaba cortó antes, o falló. */
+export const CALL_END_REASONS = ['completed', 'missed', 'declined', 'cancelled', 'failed'] as const;
+export const CALL_PARTICIPANT_STATES = ['invited', 'joined', 'left', 'declined'] as const;
+/** Segundos que suena una llamada antes de darse por perdida. */
+export const CALL_RING_SECONDS = 45;
+/** Duración máxima de una llamada (horas): después se corta sola. */
+export const CALL_MAX_HOURS = 4;

@@ -6,6 +6,7 @@ import {
   GROUP_MAX_MEMBERS,
   GROUP_TITLE_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
+  CALL_KINDS,
   CONTACTS_MAX,
   STATUS_AUDIENCES,
   STATUS_BACKGROUNDS,
@@ -171,6 +172,9 @@ export const updateStatusPrivacySchema = z
   })
   .strict();
 
+/** Iniciar una llamada desde un chat: solo se elige si es de voz o de video. */
+export const startCallSchema = z.object({ kind: z.enum(CALL_KINDS, { message: 'Tipo de llamada inválido' }) }).strict();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
@@ -182,3 +186,4 @@ export type SendStickerInput = z.infer<typeof sendStickerSchema>;
 export type CreateTextStatusInput = z.infer<typeof createTextStatusSchema>;
 export type CreateMediaStatusInput = z.infer<typeof createMediaStatusSchema>;
 export type UpdateStatusPrivacyInput = z.infer<typeof updateStatusPrivacySchema>;
+export type StartCallInput = z.infer<typeof startCallSchema>;
