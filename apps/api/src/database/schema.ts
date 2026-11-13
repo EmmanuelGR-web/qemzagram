@@ -19,6 +19,7 @@ export const conversationTypeEnum = pgEnum('conversation_type', ['direct', 'grou
 export const memberRoleEnum = pgEnum('member_role', ['admin', 'member']);
 export const emailTokenTypeEnum = pgEnum('email_token_type', ['verify', 'reset']);
 export const attachmentKindEnum = pgEnum('attachment_kind', ['image', 'file', 'audio', 'video', 'sticker']);
+export const statusKindEnum = pgEnum('status_kind', ['text', 'image', 'video']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -186,6 +187,35 @@ export const stickers = pgTable(
   (table) => [index('stickers_owner_idx').on(table.ownerId)],
 );
 
+/**
+ * Estados de 24 horas. El texto/epígrafe va CIFRADO (AAD = "status:<id>") y el archivo (foto o video)
+ * vive cifrado en el almacenamiento. Nunca se muestran después de `expiresAt`, aunque la limpieza
+ * periódica todavía no los haya borrado.
+ */
+export const statuses = pgTable(
+  'statuses',
+  {
+    id: uuid('id').primaryKey(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: statusKindEnum('kind').notNull(),
+    bodyEncrypted: text('body_encrypted').notNull(),
+    /** Fondo de los estados de texto (código de una lista cerrada). */
+    background: text('background'),
+    storageKey: text('storage_key').unique(),
+    /** Tipo MIME determinado por el SERVIDOR. */
+    mimeType: text('mime_type'),
+    sizeBytes: integer('size_bytes'),
+    width: integer('width'),
+    height: integer('height'),
+    durationMs: integer('duration_ms'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (table) => [index('statuses_owner_expires_idx').on(table.ownerId, table.expiresAt), index('statuses_expires_idx').on(table.expiresAt)],
+);
+
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
 export const auditLog = pgTable(
   'audit_log',
@@ -209,3 +239,5 @@ export type MessageRow = typeof messages.$inferSelect;
 export type AttachmentRow = typeof attachments.$inferSelect;
 export type NewAttachmentRow = typeof attachments.$inferInsert;
 export type StickerRow = typeof stickers.$inferSelect;
+export type StatusRow = typeof statuses.$inferSelect;
+export type NewStatusRow = typeof statuses.$inferInsert;

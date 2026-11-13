@@ -83,3 +83,20 @@ export const GENERAL_STICKER_LABELS: Record<GeneralStickerCode, string> = {
   abrazo: 'Abrazo',
   chau: 'Chau',
 };
+
+/* ---------- Fase 3: estados (24 horas) ---------- */
+
+/** Un estado dura 24 horas desde que se publica. */
+export const STATUS_TTL_HOURS = 24;
+export const STATUS_TEXT_MAX_LENGTH = 700;
+/** Máximo de estados vigentes por persona (evita abusos de almacenamiento). */
+export const STATUS_ACTIVE_MAX = 30;
+/** Un video de estado dura como máximo 60 segundos. */
+export const STATUS_VIDEO_MAX_SECONDS = 60;
+/** Tipos de estado. */
+export const STATUS_KINDS = ['text', 'image', 'video'] as const;
+/** Los que se suben como archivo. */
+export const STATUS_MEDIA_KINDS = ['image', 'video'] as const;
+/** Fondos de los estados de texto (lista cerrada: el cliente no puede mandar CSS arbitrario). */
+export const STATUS_BACKGROUNDS = ['rojo', 'vino', 'coral', 'noche', 'rosa'] as const;
+export type StatusBackground = (typeof STATUS_BACKGROUNDS)[number];

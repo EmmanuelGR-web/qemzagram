@@ -14,6 +14,7 @@ import { HealthController } from './health/health.controller';
 import { MailModule } from './mail/mail.module';
 import { MediaModule } from './media/media.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { StatusesModule } from './statuses/statuses.module';
 import { StickersModule } from './stickers/stickers.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
@@ -39,6 +40,7 @@ import { UsersModule } from './users/users.module';
     MediaModule,
     StickersModule,
     ChatsModule,
+    StatusesModule,
     RealtimeModule,
   ],
   controllers: [HealthController],

@@ -7,6 +7,7 @@ import { AttachmentsRepository } from './repositories/attachments.repository';
 import { ContactsRepository } from './repositories/contacts.repository';
 import { ConversationsRepository } from './repositories/conversations.repository';
 import { EmailTokensRepository } from './repositories/email-tokens.repository';
+import { StatusesRepository } from './repositories/statuses.repository';
 import { StickersRepository } from './repositories/stickers.repository';
 import { SessionsRepository } from './repositories/sessions.repository';
 import { UsersRepository } from './repositories/users.repository';
@@ -54,6 +55,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     ConversationsRepository,
     AttachmentsRepository,
     StickersRepository,
+    StatusesRepository,
   ],
   exports: [
     DB,
@@ -64,6 +66,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     ConversationsRepository,
     AttachmentsRepository,
     StickersRepository,
+    StatusesRepository,
   ],
 })
 export class DatabaseModule implements OnApplicationShutdown {

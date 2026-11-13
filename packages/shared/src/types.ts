@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, GeneralStickerCode, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusBackground, UPLOAD_KINDS } from './constants';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
 
@@ -79,6 +79,45 @@ export interface ConversationDto {
   members: ConversationMemberDto[];
   lastMessage: MessageDto | null;
   createdAt: string;
+}
+
+export type StatusKind = (typeof STATUS_KINDS)[number];
+export type StatusMediaKind = (typeof STATUS_MEDIA_KINDS)[number];
+
+/** Archivo de un estado (foto o video). `url` es FIRMADA; además la API vuelve a verificar el permiso. */
+export interface StatusMediaDto {
+  url: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+}
+
+/** Un estado que dura 24 horas. */
+export interface StatusDto {
+  id: string;
+  ownerId: string;
+  kind: StatusKind;
+  /** Texto del estado o epígrafe de la foto/video. */
+  body: string;
+  /** Fondo (solo estados de texto). */
+  background: StatusBackground | null;
+  media: StatusMediaDto | null;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** Estados vigentes de una persona de tu agenda, del más viejo al más nuevo. */
+export interface StatusFeedItemDto {
+  user: PublicUser;
+  statuses: StatusDto[];
+}
+
+export interface StatusOverviewDto {
+  /** Tus estados vigentes. */
+  mine: StatusDto[];
+  /** Estados de tu agenda que podés ver, empezando por los más recientes. */
+  feed: StatusFeedItemDto[];
 }
 
 export interface ApiErrorBody {

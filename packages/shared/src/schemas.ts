@@ -6,6 +6,9 @@ import {
   GROUP_MAX_MEMBERS,
   GROUP_TITLE_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
+  STATUS_BACKGROUNDS,
+  STATUS_MEDIA_KINDS,
+  STATUS_TEXT_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   RESERVED_TAGS,
   TAG_MAX_LENGTH,
@@ -138,6 +141,25 @@ export const sendStickerSchema = z.union([
   z.object({ stickerId: z.string().uuid() }).strict(),
 ]);
 
+/** Estado de texto: texto obligatorio + fondo de una lista cerrada. */
+export const createTextStatusSchema = z
+  .object({
+    body: z
+      .string()
+      .max(STATUS_TEXT_MAX_LENGTH, `Máximo ${STATUS_TEXT_MAX_LENGTH} caracteres`)
+      .refine((value) => value.trim().length > 0, 'Escribí algo para tu estado'),
+    background: z.enum(STATUS_BACKGROUNDS, { message: 'Fondo inválido' }),
+  })
+  .strict();
+
+/** Campos de texto que acompañan a la foto o video de un estado (multipart). */
+export const createMediaStatusSchema = z
+  .object({
+    kind: z.enum(STATUS_MEDIA_KINDS, { message: 'Tipo de estado inválido' }),
+    caption: z.string().max(STATUS_TEXT_MAX_LENGTH, `Máximo ${STATUS_TEXT_MAX_LENGTH} caracteres`).optional().default(''),
+  })
+  .strict();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
@@ -146,3 +168,5 @@ export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export type SendAttachmentInput = z.infer<typeof sendAttachmentSchema>;
 export type SendStickerInput = z.infer<typeof sendStickerSchema>;
+export type CreateTextStatusInput = z.infer<typeof createTextStatusSchema>;
+export type CreateMediaStatusInput = z.infer<typeof createMediaStatusSchema>;
