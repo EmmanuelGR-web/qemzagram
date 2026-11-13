@@ -1,6 +1,8 @@
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
 const isDev = process.env.NODE_ENV !== 'production';
+/** Servidor de llamadas (LiveKit). El navegador se conecta directo con un token de vida corta que da la API. */
+const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL ?? 'ws://localhost:7880';
 
 // Política de seguridad de contenido (CSP). 'unsafe-inline' en script/style lo exige Next.js sin nonces;
 // en la Fase de endurecimiento se migra a CSP con nonce (ver docs/SEGURIDAD.md).
@@ -10,7 +12,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
-  `connect-src 'self' ${WS_URL} ${WS_URL.replace(/^http/, 'ws')}${isDev ? ' ws://localhost:3000' : ''}`,
+  `connect-src 'self' ${WS_URL} ${WS_URL.replace(/^http/, 'ws')} ${LIVEKIT_URL} ${LIVEKIT_URL.replace(/^ws/, 'http')}${isDev ? ' ws://localhost:3000' : ''}`,
   "font-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",

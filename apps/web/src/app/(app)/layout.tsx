@@ -3,8 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { AppHeader } from '@/components/AppHeader';
+import { CallOverlay } from '@/components/call/CallOverlay';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/lib/auth-context';
+import { CallProvider } from '@/lib/call-context';
 import { RealtimeProvider } from '@/lib/realtime-context';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -25,10 +27,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <RealtimeProvider>
-      <div className="app-shell">
-        <AppHeader />
-        <main className="app-main">{children}</main>
-      </div>
+      <CallProvider>
+        <div className="app-shell">
+          <AppHeader />
+          <main className="app-main">{children}</main>
+        </div>
+        <CallOverlay />
+      </CallProvider>
     </RealtimeProvider>
   );
 }

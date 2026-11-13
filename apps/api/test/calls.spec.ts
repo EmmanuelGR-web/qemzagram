@@ -1,4 +1,4 @@
-import { CALL_RING_SECONDS, type CallDto, type CallJoinDto } from '@qemzagram/shared';
+import { CALL_RING_SECONDS, type CallDto, type CallJoinDto, type MessageDto } from '@qemzagram/shared';
 import { TokenVerifier } from 'livekit-server-sdk';
 import request from 'supertest';
 import { CallsService } from '../src/calls/calls.service';
@@ -92,6 +92,22 @@ describe('Llamadas y videollamadas', () => {
     expect(await service.expire(new Date(Date.now() + (CALL_RING_SECONDS - 5) * 1000))).toBe(0); // todavía suena
     expect(await service.expire(new Date(Date.now() + (CALL_RING_SECONDS + 1) * 1000))).toBe(1);
     expect(await getCall(beto, missed.call.id)).toMatchObject({ status: 'ended', endReason: 'missed' });
+
+    // Cada llamada terminada queda registrada en el chat, "enviada" por quien llamó.
+    const history = (await beto.agent.get(`/chats/${directId}/messages`).expect(200)).body as MessageDto[];
+    const last = history.at(-1);
+    expect(last).toMatchObject({ senderId: ana.id, body: '', attachment: null, sticker: null });
+    expect(last?.call).toEqual({ id: missed.call.id, kind: 'video', endReason: 'missed', durationMs: null });
+    expect(history.filter((message) => message.call).map((message) => message.call?.endReason).slice(-3)).toEqual(['declined', 'cancelled', 'missed']);
+  });
+
+  it('una llamada atendida queda en el chat con su duración', async () => {
+    const started = await startOk(ana, directId, 'audio');
+    await beto.agent.post(`/calls/${started.call.id}/join`).expect(200);
+    await beto.agent.post(`/calls/${started.call.id}/leave`).expect(200);
+    const last = ((await ana.agent.get(`/chats/${directId}/messages`).expect(200)).body as MessageDto[]).at(-1);
+    expect(last?.call).toMatchObject({ id: started.call.id, kind: 'audio', endReason: 'completed' });
+    expect(last?.call?.durationMs).toBeGreaterThanOrEqual(0);
   });
 
   it('las llamadas de voz no pueden publicar cámara', async () => {

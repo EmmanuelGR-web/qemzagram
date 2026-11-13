@@ -4,6 +4,7 @@ import {
   type ConversationDto,
   type CreateGroupInput,
   type GeneralStickerCode,
+  type CallSummaryDto,
   type MessageDto,
   type SendAttachmentInput,
   type SendStickerInput,
@@ -13,10 +14,11 @@ import { randomUUID } from 'node:crypto';
 import { CryptoService } from '../common/crypto.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
 import { AttachmentsRepository } from '../database/repositories/attachments.repository';
+import { CallsRepository } from '../database/repositories/calls.repository';
 import { ContactsRepository } from '../database/repositories/contacts.repository';
 import { ConversationsRepository, type MemberWithUser } from '../database/repositories/conversations.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
-import type { AttachmentRow, ConversationRow, MessageRow, UserRow } from '../database/schema';
+import type { AttachmentRow, CallRow, ConversationRow, MessageRow, UserRow } from '../database/schema';
 import { MediaProcessor, type ProcessedMedia, type UploadedInput } from '../media/media-processor.service';
 import { MediaService } from '../media/media.service';
 import { RealtimePublisher } from '../realtime/realtime.port';
@@ -41,6 +43,7 @@ export class ChatsService {
     private readonly processor: MediaProcessor,
     private readonly storage: BlobStorage,
     private readonly stickers: StickersService,
+    private readonly calls: CallsRepository,
   ) {}
 
   async list(userId: string): Promise<ConversationDto[]> {
@@ -222,6 +225,15 @@ export class ChatsService {
     }
   }
 
+  /**
+   * Deja en el chat el registro de una llamada terminada ("Llamada perdida", "Videollamada · 3:12").
+   * Lo "envía" quien llamó; no tiene texto (el cuerpo cifrado va vacío).
+   */
+  async postCallLog(call: CallRow): Promise<MessageDto> {
+    const row = await this.conversations.insertMessage(call.conversationId, call.startedBy, this.crypto.encryptText('', call.conversationId), null, call.id);
+    return this.publish(this.toMessageDto(row, null, call));
+  }
+
   /** Entrega el mensaje en tiempo real a todos los miembros. */
   private async publish(dto: MessageDto): Promise<MessageDto> {
     const members = await this.conversations.getMembers([dto.conversationId]);
@@ -287,14 +299,16 @@ export class ChatsService {
     });
   }
 
-  /** Convierte mensajes a DTO trayendo sus adjuntos en UNA consulta (sin N+1). */
+  /** Convierte mensajes a DTO trayendo adjuntos y llamadas en una consulta cada uno (sin N+1). */
   private async toMessageDtos(rows: MessageRow[]): Promise<MessageDto[]> {
-    const found = await this.attachments.findByMessageIds(rows.map((row) => row.id));
+    const callIds = rows.flatMap((row) => (row.callId ? [row.callId] : []));
+    const [found, callRows] = await Promise.all([this.attachments.findByMessageIds(rows.map((row) => row.id)), this.calls.findManyByIds(callIds)]);
     const byMessage = new Map(found.map((attachment) => [attachment.messageId, attachment]));
-    return rows.map((row) => this.toMessageDto(row, byMessage.get(row.id) ?? null));
+    const byCall = new Map(callRows.map((call) => [call.id, call]));
+    return rows.map((row) => this.toMessageDto(row, byMessage.get(row.id) ?? null, (row.callId ? byCall.get(row.callId) : undefined) ?? null));
   }
 
-  private toMessageDto(row: MessageRow, attachment: AttachmentRow | null): MessageDto {
+  private toMessageDto(row: MessageRow, attachment: AttachmentRow | null, call: CallRow | null = null): MessageDto {
     let body: string;
     try {
       body = this.crypto.decryptText(row.body, row.conversationId);
@@ -308,7 +322,13 @@ export class ChatsService {
       body,
       attachment: attachment ? this.media.toAttachmentDto(attachment) : null,
       sticker: (row.stickerCode as GeneralStickerCode | null) ?? null,
+      call: call ? toCallSummary(call) : null,
       createdAt: row.createdAt.toISOString(),
     };
   }
+}
+
+function toCallSummary(call: CallRow): CallSummaryDto {
+  const durationMs = call.answeredAt && call.endedAt ? call.endedAt.getTime() - call.answeredAt.getTime() : null;
+  return { id: call.id, kind: call.kind, endReason: call.endReason, durationMs };
 }

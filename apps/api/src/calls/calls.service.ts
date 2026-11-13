@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CALL_MAX_HOURS, CALL_RING_SECONDS, type CallDto, type CallJoinDto, type CallKind } from '@qemzagram/shared';
+import { ChatsService } from '../chats/chats.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
 import { CallsRepository, type ParticipantWithUser } from '../database/repositories/calls.repository';
 import { ConversationsRepository } from '../database/repositories/conversations.repository';
@@ -24,6 +25,7 @@ export class CallsService {
     private readonly conversations: ConversationsRepository,
     private readonly media: CallMediaPort,
     private readonly realtime: RealtimePublisher,
+    private readonly chats: ChatsService,
   ) {}
 
   /** Inicia una llamada en un chat y devuelve el acceso a la sala para quien llama. */
@@ -136,7 +138,9 @@ export class CallsService {
       return this.toDto(latest, conversation);
     }
     await this.media.closeRoom(call.id);
-    return this.publishUpdate(ended, conversation);
+    const dto = await this.publishUpdate(ended, conversation);
+    await this.chats.postCallLog(ended);
+    return dto;
   }
 
   /** Avisa a TODOS los miembros actuales de la conversación (así se apaga el timbre en todos lados). */

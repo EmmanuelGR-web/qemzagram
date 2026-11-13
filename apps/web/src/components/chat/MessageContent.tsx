@@ -2,9 +2,9 @@
 
 import { GENERAL_STICKER_LABELS, type AttachmentDto, type MessageDto } from '@qemzagram/shared';
 import { useEffect, useState } from 'react';
-import { CloseIcon, DownloadIcon, FileIcon, MicIcon } from '@/components/icons';
+import { CloseIcon, DownloadIcon, FileIcon, MicIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { mediaUrl } from '@/lib/api';
-import { formatBytes, formatDuration } from '@/lib/messages';
+import { callLabel, formatBytes, formatDuration } from '@/lib/messages';
 
 interface Props {
   message: MessageDto;
@@ -15,6 +15,15 @@ interface Props {
 /** Contenido de una burbuja: adjunto (si hay) + texto o epígrafe. */
 export function MessageContent({ message, onMediaError }: Props) {
   const { attachment } = message;
+  if (message.call) {
+    const missed = message.call.endReason !== 'completed';
+    return (
+      <span className="call-log" data-missed={missed}>
+        <span className="call-log-icon">{message.call.kind === 'video' ? <VideoIcon /> : <PhoneIcon />}</span>
+        <span>{callLabel(message.call)}</span>
+      </span>
+    );
+  }
   if (message.sticker) {
     return <img className="sticker-img" src={`/stickers/${message.sticker}.svg`} alt={`Sticker: ${GENERAL_STICKER_LABELS[message.sticker]}`} />;
   }

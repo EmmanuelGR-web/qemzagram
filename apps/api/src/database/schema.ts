@@ -7,6 +7,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  type AnyPgColumn,
   text,
   timestamp,
   uniqueIndex,
@@ -145,6 +146,8 @@ export const messages = pgTable(
     body: text('body').notNull(),
     /** Código de un sticker del pack general (validado contra una lista cerrada). */
     stickerCode: text('sticker_code'),
+    /** Registro de una llamada en el chat ("Llamada perdida", "Videollamada · 3:12"). */
+    callId: uuid('call_id').references((): AnyPgColumn => calls.id, { onDelete: 'set null' }),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (table) => [index('messages_conversation_created_idx').on(table.conversationId, table.createdAt)],

@@ -54,6 +54,8 @@ export interface MessageDto {
   attachment: AttachmentDto | null;
   /** Sticker del pack general (los stickers propios llegan como `attachment` de tipo "sticker"). */
   sticker: GeneralStickerCode | null;
+  /** Registro de una llamada terminada (el mensaje lo "envía" quien llamó). */
+  call: CallSummaryDto | null;
   createdAt: string;
 }
 
@@ -142,6 +144,15 @@ export interface StatusPrivacyDto {
   except: PublicUser[];
   /** "Solo compartir con…" */
   only: PublicUser[];
+}
+
+/** Resumen de una llamada terminada, para mostrar en el chat. */
+export interface CallSummaryDto {
+  id: string;
+  kind: CallKind;
+  endReason: CallEndReason | null;
+  /** Duración desde que alguien atendió (null si nadie atendió). */
+  durationMs: number | null;
 }
 
 export type CallKind = (typeof CALL_KINDS)[number];

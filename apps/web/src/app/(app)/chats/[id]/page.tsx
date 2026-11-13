@@ -7,10 +7,11 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Avatar } from '@/components/Avatar';
 import { Composer } from '@/components/chat/Composer';
 import { MessageContent } from '@/components/chat/MessageContent';
-import { BackIcon, GroupIcon } from '@/components/icons';
+import { BackIcon, GroupIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage, refreshSession } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useCalls } from '@/lib/call-context';
 import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
 import { useRealtimeEvent } from '@/lib/realtime-context';
 
@@ -19,6 +20,7 @@ export default function ConversationPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { upsert, remove } = useChats();
+  const calls = useCalls();
   const [conversation, setConversation] = useState<ConversationDto | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +99,14 @@ export default function ConversationPage() {
             <small>{info.subtitle}</small>
           </span>
         </button>
+        <div className="conversation-actions">
+          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'audio')} disabled={Boolean(calls.active)} aria-label="Llamar" title="Llamar">
+            <PhoneIcon />
+          </button>
+          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'video')} disabled={Boolean(calls.active)} aria-label="Videollamada" title="Videollamada">
+            <VideoIcon />
+          </button>
+        </div>
       </header>
 
       <div className="messages" role="log" aria-live="polite">

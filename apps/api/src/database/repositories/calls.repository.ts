@@ -50,6 +50,11 @@ export class CallsRepository {
     return row;
   }
 
+  async findManyByIds(ids: string[]): Promise<CallRow[]> {
+    if (ids.length === 0) return [];
+    return this.db.select().from(calls).where(inArray(calls.id, ids));
+  }
+
   async findOpenByConversation(conversationId: string): Promise<CallRow | undefined> {
     const [row] = await this.db
       .select()

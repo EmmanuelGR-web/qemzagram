@@ -1,4 +1,5 @@
 import { Logger, Module } from '@nestjs/common';
+import { ChatsModule } from '../chats/chats.module';
 import { ENV, type AppEnv } from '../config/env';
 import { CallMediaPort } from './call-media.port';
 import { CallsTimeoutService } from './calls-timeout.service';
@@ -7,6 +8,7 @@ import { CallsService } from './calls.service';
 import { DisabledCallMedia, LiveKitCallMedia } from './livekit.media';
 
 @Module({
+  imports: [ChatsModule],
   controllers: [CallsController],
   providers: [
     CallsService,

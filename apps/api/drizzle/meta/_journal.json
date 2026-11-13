@@ -43,6 +43,13 @@
       "when": 1794578188217,
       "tag": "0005_llamadas",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794578649805,
+      "tag": "0006_registro_llamadas",
+      "breakpoints": true
     }
   ]
 }

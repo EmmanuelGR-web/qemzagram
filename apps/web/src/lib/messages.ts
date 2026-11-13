@@ -1,7 +1,8 @@
-import { GENERAL_STICKER_LABELS, type MessageDto, type UploadKind } from '@qemzagram/shared';
+import { GENERAL_STICKER_LABELS, type CallSummaryDto, type MessageDto, type UploadKind } from '@qemzagram/shared';
 
 /** Texto corto para la lista de chats (último mensaje). */
 export function messagePreview(message: MessageDto): string {
+  if (message.call) return `${message.call.kind === 'video' ? '🎥' : '📞'} ${callLabel(message.call)}`;
   if (message.sticker) return `Sticker · ${GENERAL_STICKER_LABELS[message.sticker]}`;
   const caption = message.body.trim();
   switch (message.attachment?.kind) {
@@ -29,6 +30,23 @@ export function kindForFile(file: File): UploadKind {
   if (file.type.startsWith('video/')) return 'video';
   if (file.type.startsWith('audio/')) return 'audio';
   return 'file';
+}
+
+/** "Llamada perdida", "Videollamada · 3:12", "Llamada rechazada"… */
+export function callLabel(call: CallSummaryDto): string {
+  const noun = call.kind === 'video' ? 'Videollamada' : 'Llamada';
+  switch (call.endReason) {
+    case 'completed':
+      return `${noun} · ${formatDuration(call.durationMs)}`;
+    case 'declined':
+      return `${noun} rechazada`;
+    case 'cancelled':
+      return `${noun} cancelada`;
+    case 'failed':
+      return `${noun} fallida`;
+    default:
+      return `${noun} perdida`;
+  }
 }
 
 export function formatBytes(bytes: number): string {

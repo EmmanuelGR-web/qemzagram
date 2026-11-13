@@ -116,10 +116,16 @@ export class ConversationsRepository {
       .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, userId)));
   }
 
-  async insertMessage(conversationId: string, senderId: string, encryptedBody: string, stickerCode: string | null = null): Promise<MessageRow> {
+  async insertMessage(
+    conversationId: string,
+    senderId: string,
+    encryptedBody: string,
+    stickerCode: string | null = null,
+    callId: string | null = null,
+  ): Promise<MessageRow> {
     const [row] = await this.db
       .insert(messages)
-      .values({ conversationId, senderId, body: encryptedBody, stickerCode })
+      .values({ conversationId, senderId, body: encryptedBody, stickerCode, callId })
       .returning();
     if (!row) throw new Error('No se pudo guardar el mensaje');
     return row;
