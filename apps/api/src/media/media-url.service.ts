@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CryptoService } from '../common/crypto.service';
 
-/** "a" = adjunto de un chat, "s" = sticker propio. */
-export type MediaScope = 'a' | 's';
+/** "a" = adjunto de un chat, "s" = sticker propio, "e" = foto o video de un estado. */
+export type MediaScope = 'a' | 's' | 'e';
 
 /** Vida útil de una URL firmada. */
 const URL_TTL_SECONDS = 60 * 60;

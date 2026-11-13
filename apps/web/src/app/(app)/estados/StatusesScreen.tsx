@@ -1,9 +1,11 @@
 'use client';
 
-import type { StatusDto, StatusOverviewDto } from '@qemzagram/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { STATUS_VIDEO_MAX_SECONDS, type StatusDto, type StatusOverviewDto } from '@qemzagram/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/Avatar';
-import { PlusIcon } from '@/components/icons';
+import { CameraCapture, cameraSupported } from '@/components/chat/CameraCapture';
+import { CameraIcon, ImageIcon, PlusIcon, VideoIcon } from '@/components/icons';
+import { MediaStatusEditor } from '@/components/status/MediaStatusEditor';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { TextStatusEditor } from '@/components/status/TextStatusEditor';
 import { api, errorMessage } from '@/lib/api';
@@ -18,6 +20,11 @@ export function StatusesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [editor, setEditor] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [camera, setCamera] = useState<'photo' | 'video' | null>(null);
+  const galleryInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -43,8 +50,15 @@ export function StatusesScreen() {
   const lastMine = mine.at(-1);
   const current = viewing?.type === 'feed' ? feed[viewing.position] : undefined;
 
+  /** Cámara dentro de la app; si el navegador no la permite, se usa el selector del sistema. */
+  function openCamera(mode: 'photo' | 'video') {
+    if (cameraSupported()) setCamera(mode);
+    else (mode === 'photo' ? photoInput : videoInput).current?.click();
+  }
+
   function created(status: StatusDto) {
     setEditor(false);
+    setFile(null);
     setOverview((previous) => (previous ? { ...previous, mine: [...previous.mine, status] } : previous));
   }
 
@@ -69,7 +83,19 @@ export function StatusesScreen() {
           <button className="btn btn-primary btn-sm" onClick={() => setEditor(true)}>
             <PlusIcon /> Texto
           </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => openCamera('photo')}>
+            <CameraIcon /> Foto
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => openCamera('video')}>
+            <VideoIcon /> Video
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => galleryInput.current?.click()}>
+            <ImageIcon /> Galería
+          </button>
         </div>
+        <input ref={galleryInput} type="file" accept="image/*,video/*" hidden onChange={(event) => { setFile(event.target.files?.[0] ?? null); event.target.value = ''; }} />
+        <input ref={photoInput} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { setFile(event.target.files?.[0] ?? null); event.target.value = ''; }} />
+        <input ref={videoInput} type="file" accept="video/*" capture="environment" hidden onChange={(event) => { setFile(event.target.files?.[0] ?? null); event.target.value = ''; }} />
       </section>
 
       {error && (
@@ -105,6 +131,23 @@ export function StatusesScreen() {
       </ul>
 
       {editor && <TextStatusEditor onClose={() => setEditor(false)} onCreated={created} />}
+      {file && <MediaStatusEditor key={`${file.name}-${file.size}-${file.lastModified}`} file={file} onClose={() => setFile(null)} onCreated={created} />}
+      {camera && (
+        <CameraCapture
+          mode={camera}
+          maxSeconds={STATUS_VIDEO_MAX_SECONDS}
+          onCapture={(captured) => {
+            setCamera(null);
+            setFile(captured);
+          }}
+          onClose={() => setCamera(null)}
+          onFallback={() => {
+            const mode = camera;
+            setCamera(null);
+            (mode === 'photo' ? photoInput : videoInput).current?.click();
+          }}
+        />
+      )}
 
       {viewing?.type === 'mine' && mine.length > 0 && (
         <StatusViewer user={user} statuses={mine} onClose={closeViewer} onFinished={closeViewer} onMediaError={() => void load()} />

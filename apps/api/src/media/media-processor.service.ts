@@ -97,7 +97,10 @@ export class MediaProcessor {
     private readonly audit: AuditService,
   ) {}
 
-  async process(kind: UploadKind, input: UploadedInput, userId: string): Promise<ProcessedMedia> {
+  /**
+   * @param limits.videoMaxSeconds duración máxima de un video (los estados admiten menos que el chat).
+   */
+  async process(kind: UploadKind, input: UploadedInput, userId: string, limits: { videoMaxSeconds?: number } = {}): Promise<ProcessedMedia> {
     if (input.buffer.length === 0) throw rejected('FILE_REQUIRED', 'Adjuntá un archivo');
     if (input.buffer.length > UPLOAD_MAX_BYTES[kind]) {
       throw new PayloadTooLargeException({ code: 'FILE_TOO_LARGE', message: `El archivo supera el máximo de ${UPLOAD_MAX_BYTES[kind] / 1024 / 1024} MB` });
@@ -118,7 +121,7 @@ export class MediaProcessor {
         return this.transcode(input.buffer, 'voice', VOICE_MAX_SECONDS);
       case 'video':
         if (type.family !== 'audio-video') throw rejected('INVALID_MEDIA', 'El archivo no es un video válido');
-        return this.transcode(input.buffer, 'video', VIDEO_MAX_SECONDS);
+        return this.transcode(input.buffer, 'video', Math.min(limits.videoMaxSeconds ?? VIDEO_MAX_SECONDS, VIDEO_MAX_SECONDS));
     }
   }
 

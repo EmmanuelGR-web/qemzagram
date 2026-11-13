@@ -14,6 +14,8 @@ interface Props {
   onClose: () => void;
   /** No hay cámara o no hay permiso: se ofrece elegir un archivo. */
   onFallback: () => void;
+  /** Duración máxima de un video (por defecto la del chat; los estados admiten menos). */
+  maxSeconds?: number;
 }
 
 const VIDEO_TYPES = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
@@ -27,7 +29,7 @@ export function cameraSupported(): boolean {
  * Cámara dentro de la app (getUserMedia). A diferencia de <input capture>, que en la PC y en algunos
  * celulares abre el selector de archivos, esto enciende la cámara en todos los dispositivos.
  */
-export function CameraCapture({ mode, onCapture, onClose, onFallback }: Props) {
+export function CameraCapture({ mode, onCapture, onClose, onFallback, maxSeconds = VIDEO_MAX_SECONDS }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -157,10 +159,10 @@ export function CameraCapture({ mode, onCapture, onClose, onFallback }: Props) {
     const timer = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startedAt) / 1000);
       setSeconds(elapsed);
-      if (elapsed >= VIDEO_MAX_SECONDS && recorderRef.current?.state === 'recording') recorderRef.current.stop();
+      if (elapsed >= maxSeconds && recorderRef.current?.state === 'recording') recorderRef.current.stop();
     }, 250);
     return () => clearInterval(timer);
-  }, [recording]);
+  }, [recording, maxSeconds]);
 
   return (
     <div className="camera" role="dialog" aria-modal="true" aria-label={mode === 'photo' ? 'Tomar foto' : 'Grabar video'}>
@@ -183,7 +185,7 @@ export function CameraCapture({ mode, onCapture, onClose, onFallback }: Props) {
         <div className="camera-controls">
           {recording && (
             <span className="camera-timer">
-              <span className="recording-dot" aria-hidden="true" /> {formatDuration(seconds * 1000)} / {formatDuration(VIDEO_MAX_SECONDS * 1000)}
+              <span className="recording-dot" aria-hidden="true" /> {formatDuration(seconds * 1000)} / {formatDuration(maxSeconds * 1000)}
             </span>
           )}
           <span className="camera-side" />
