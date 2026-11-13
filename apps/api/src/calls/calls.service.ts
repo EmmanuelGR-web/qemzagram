@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { CALL_MAX_HOURS, CALL_RING_SECONDS, type CallDto, type CallJoinDto, type CallKind } from '@qemzagram/shared';
+import { CALL_MAX_HOURS, CALL_RING_SECONDS, type CallDto, type CallJoinDto, type CallKind, type PushPayload } from '@qemzagram/shared';
 import { ChatsService } from '../chats/chats.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
 import { CallsRepository, type ParticipantWithUser } from '../database/repositories/calls.repository';
-import { ConversationsRepository } from '../database/repositories/conversations.repository';
+import { ConversationsRepository, type MemberWithUser } from '../database/repositories/conversations.repository';
 import type { CallRow, ConversationRow } from '../database/schema';
+import { PushService } from '../notifications/push.service';
 import { RealtimePublisher } from '../realtime/realtime.port';
 import { CallMediaPort, type CallMediaEvent } from './call-media.port';
 
@@ -12,6 +13,9 @@ const NOT_FOUND = { code: 'CALL_NOT_FOUND', message: 'No encontramos esa llamada
 const CHAT_NOT_FOUND = { code: 'CHAT_NOT_FOUND', message: 'No encontramos esa conversación' };
 
 type EndReason = NonNullable<CallRow['endReason']>;
+
+/** Tema de la notificación (máx. 32 caracteres url-safe): el id de la llamada sin guiones. */
+const pushTopic = (call: CallRow) => call.id.replace(/-/g, '');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -28,6 +32,7 @@ export class CallsService {
     private readonly media: CallMediaPort,
     private readonly realtime: RealtimePublisher,
     private readonly chats: ChatsService,
+    private readonly push: PushService,
   ) {}
 
   /** Inicia una llamada en un chat y devuelve el acceso a la sala para quien llama. */
@@ -47,6 +52,8 @@ export class CallsService {
     }
     const dto = await this.toDto(created, conversation);
     this.realtime.toUsers(invited, 'call:incoming', dto);
+    // Notificación push para quien tenga la app cerrada (sin esperar: no demora la llamada).
+    void this.push.notify(invited, { type: 'call', ...this.pushInfo(created, conversation, members) }, { ttl: CALL_RING_SECONDS, urgency: 'high', topic: pushTopic(created) });
     return { call: dto, token: await this.tokenFor(created, userId), url: this.media.url };
   }
 
@@ -60,6 +67,7 @@ export class CallsService {
     await this.calls.setParticipantState(call.id, userId, 'joined', now);
     const current = (call.status === 'ringing' && call.startedBy !== userId ? await this.calls.markAnswered(call.id, now) : undefined) ?? call;
     const dto = await this.publishUpdate(current, conversation);
+    void this.notifyClosed(current, conversation, [userId], false);
     return { call: dto, token: await this.tokenFor(current, userId), url: this.media.url };
   }
 
@@ -70,6 +78,7 @@ export class CallsService {
     if (call.startedBy === userId) return this.leave(userId, callId);
 
     await this.calls.setParticipantState(call.id, userId, 'declined', new Date());
+    void this.notifyClosed(call, conversation, [userId], false);
     if (conversation.type === 'direct') return this.finish(call, conversation, 'declined');
     return this.settleGroup(call, conversation);
   }
@@ -165,6 +174,9 @@ export class CallsService {
     await this.media.closeRoom(call.id);
     const dto = await this.publishUpdate(ended, conversation);
     await this.chats.postCallLog(ended);
+    // Quienes nunca atendieron: se cierra el aviso de "llamada entrante" (y queda como perdida).
+    const unanswered = dto.participants.filter((participant) => participant.state === 'invited').map((participant) => participant.user.id);
+    void this.notifyClosed(ended, conversation, unanswered, reason === 'missed' || reason === 'cancelled');
     return dto;
   }
 
@@ -178,6 +190,26 @@ export class CallsService {
       dto,
     );
     return dto;
+  }
+
+  /** Título del aviso: el grupo, o quien llama. Nunca incluye mensajes. */
+  private pushInfo(call: CallRow, conversation: ConversationRow, members: MemberWithUser[]) {
+    const caller = members.find((member) => member.user.id === call.startedBy)?.user.displayName ?? 'Alguien';
+    return {
+      callId: call.id,
+      conversationId: call.conversationId,
+      kind: call.kind,
+      title: conversation.type === 'group' ? `${caller} · ${conversation.title ?? 'Grupo'}` : caller,
+      group: conversation.type === 'group',
+    };
+  }
+
+  private async notifyClosed(call: CallRow, conversation: ConversationRow, userIds: string[], missed: boolean): Promise<void> {
+    if (userIds.length === 0) return;
+    const { group: _group, ...info } = this.pushInfo(call, conversation, await this.conversations.getMembers([conversation.id]));
+    const payload: PushPayload = { type: 'call-closed', ...info, missed };
+    // Mismo "tema" que el aviso de llamada: el servicio de push reemplaza uno por otro.
+    await this.push.notify(userIds, payload, { ttl: missed ? 24 * 60 * 60 : 60, urgency: missed ? 'normal' : 'high', topic: pushTopic(call) });
   }
 
   private async toDto(call: CallRow, conversation: ConversationRow): Promise<CallDto> {

@@ -3,6 +3,7 @@
 import type { SelfUser } from '@qemzagram/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, ApiError } from './api';
+import { disablePush } from './push';
 
 interface AuthState {
   user: SelfUser | null;
@@ -31,6 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Este dispositivo deja de recibir avisos de esta cuenta (antes de cerrar la sesión).
+    await disablePush().catch(() => undefined);
     await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
     setUser(null);
   }, []);

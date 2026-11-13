@@ -307,6 +307,25 @@ export const callParticipants = pgTable(
   (table) => [primaryKey({ columns: [table.callId, table.userId] }), index('call_participants_user_idx').on(table.userId)],
 );
 
+/**
+ * Suscripciones a notificaciones push (Web Push) de cada dispositivo.
+ * La dirección y las claves se guardan CIFRADAS (permiten mandarle avisos a esa persona);
+ * para no duplicar se usa el hash SHA-256 de la dirección.
+ */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    endpointHash: text('endpoint_hash').notNull().unique(),
+    dataEncrypted: text('data_encrypted').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('push_subscriptions_user_idx').on(table.userId, table.createdAt)],
+);
+
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
 export const auditLog = pgTable(
   'audit_log',
@@ -334,3 +353,4 @@ export type StatusRow = typeof statuses.$inferSelect;
 export type NewStatusRow = typeof statuses.$inferInsert;
 export type CallRow = typeof calls.$inferSelect;
 export type CallParticipantRow = typeof callParticipants.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

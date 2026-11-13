@@ -60,6 +60,19 @@ archivo  ─► StatusMediaController GET /media/e/:id?exp&sig ─► firma + fi
 limpieza ─► StatusesCleanupService (cada 5 min): borra vencidos y sus archivos
 ```
 
+## Llamadas (Fase 4)
+
+```
+iniciar  ─► CallsController POST /chats/:id/calls ─► CallsService (¿miembro? ¿ya hay una?)
+         ─► CallsRepository (llamada + participantes) ─► CallMediaPort.createJoinToken (2 min, 1 sala)
+         ─► RealtimePublisher "call:incoming" + PushService (Web Push) a quienes están invitados
+atender  ─► POST /calls/:id/join ─► token ─► el navegador se conecta DIRECTO a LiveKit (audio/video)
+cortar   ─► POST /calls/:id/leave | decline ─► fin condicional ─► CallMediaPort.closeRoom
+         ─► ChatsService.postCallLog (mensaje "Llamada perdida"/"Videollamada · 3:12")
+LiveKit  ─► POST /calls/livekit-webhook (firmado) ─► CallsService.handleMediaEvent
+reloj    ─► CallsTimeoutService (cada 5 s): "perdida" a los 45 s, corte a las 4 h
+```
+
 ## Cómo se aplica SOLID
 
 - **S — Responsabilidad única:** cada clase hace una cosa (`CryptoService` cifra, `AuditService` audita, `StorageService` procesa imágenes, `TokensService` firma tokens).
@@ -89,6 +102,8 @@ limpieza ─► StatusesCleanupService (cada 5 min): borra vencidos y sus archiv
 | `stickers` | "Mis stickers" de cada persona (archivo cifrado, visible solo para su dueño) |
 | `statuses` | Estados de 24 h: tipo (texto/foto/video), texto **cifrado**, fondo, archivo cifrado y `expires_at` |
 | `status_audience_members` | Listas de privacidad de los estados ("excepto" y "solo con"); la opción elegida vive en `users.status_audience` |
+| `calls` / `call_participants` | Llamadas: tipo, estado, quién llamó, cuándo se atendió/terminó y por qué; estado de cada participante. Una sola llamada abierta por chat (índice único parcial) |
+| `push_subscriptions` | Dispositivos con notificaciones: dirección y claves **cifradas**, hash de la dirección para no duplicar |
 | `status_views` | Quién vio cada estado (solo lo consulta el dueño; se borra con el estado) |
 | `audit_log` | Eventos de seguridad (incluye archivos bloqueados por el antivirus) |
 

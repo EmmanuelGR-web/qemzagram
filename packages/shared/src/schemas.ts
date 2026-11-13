@@ -175,6 +175,22 @@ export const updateStatusPrivacySchema = z
 /** Iniciar una llamada desde un chat: solo se elige si es de voz o de video. */
 export const startCallSchema = z.object({ kind: z.enum(CALL_KINDS, { message: 'Tipo de llamada inválido' }) }).strict();
 
+/** Suscripción Web Push que entrega el navegador (`PushSubscription.toJSON()`). */
+export const pushSubscriptionSchema = z
+  .object({
+    endpoint: z.string().url().max(1000).startsWith('https://', 'La dirección tiene que ser https'),
+    expirationTime: z.number().nullable().optional(),
+    keys: z
+      .object({
+        p256dh: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/, 'Clave inválida'),
+        auth: z.string().regex(/^[A-Za-z0-9_-]{16,32}$/, 'Clave inválida'),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const pushUnsubscribeSchema = z.object({ endpoint: z.string().url().max(1000) }).strict();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
@@ -187,3 +203,4 @@ export type CreateTextStatusInput = z.infer<typeof createTextStatusSchema>;
 export type CreateMediaStatusInput = z.infer<typeof createMediaStatusSchema>;
 export type UpdateStatusPrivacyInput = z.infer<typeof updateStatusPrivacySchema>;
 export type StartCallInput = z.infer<typeof startCallSchema>;
+export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;

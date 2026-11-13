@@ -23,6 +23,16 @@ const secrets = {
   MESSAGE_ENC_KEY: randomBytes(32).toString('base64'),
 };
 
+// Claves VAPID para notificaciones push (si web-push ya está instalado).
+try {
+  const { default: webPush } = await import('web-push');
+  const vapid = webPush.generateVAPIDKeys();
+  secrets.VAPID_PUBLIC_KEY = vapid.publicKey;
+  secrets.VAPID_PRIVATE_KEY = vapid.privateKey;
+} catch {
+  console.log('  (sin claves VAPID: corré "npm install" y después "npx web-push generate-vapid-keys")');
+}
+
 let content = readFileSync(example, 'utf8');
 for (const [key, value] of Object.entries(secrets)) {
   content = content.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`);

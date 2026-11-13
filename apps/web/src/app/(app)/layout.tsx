@@ -7,6 +7,7 @@ import { CallOverlay } from '@/components/call/CallOverlay';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/lib/auth-context';
 import { CallProvider } from '@/lib/call-context';
+import { registerServiceWorker } from '@/lib/push';
 import { RealtimeProvider } from '@/lib/realtime-context';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -16,6 +17,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [loading, user, router]);
+
+  // Service worker: necesario para recibir avisos de llamadas con la app cerrada.
+  useEffect(() => {
+    if (user) void registerServiceWorker();
+  }, [user]);
 
   if (loading || !user) {
     return (

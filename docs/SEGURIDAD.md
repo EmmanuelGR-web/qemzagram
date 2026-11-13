@@ -65,6 +65,21 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - El registro de "visto" lo informa el navegador de quien mira (solo para estados que ya puede ver): sirve como indicación, no como prueba.
 - La limpieza corre dentro de la API. Si la API está apagada, los archivos vencidos quedan en disco (cifrados e inaccesibles) hasta que vuelva a arrancar.
 
+## 2.3 Llamadas y notificaciones push (Fase 4)
+
+- **El audio y el video nunca pasan por la API ni se guardan.** Viajan entre el navegador y el servidor de medios (LiveKit, SFU). Como todo pasa por el servidor, **nadie ve la IP de la otra persona** (en una llamada P2P directa sí se vería).
+- **Quién entra:** solo miembros ACTUALES de la conversación pueden ver, iniciar, atender o cortar una llamada; para cualquier otra persona "no existe". Quien deja un grupo no puede entrar a su llamada.
+- **Token de LiveKit:** lo emite la API, vale **2 minutos** para entrar, sirve para **una sola sala** (la llamada) y con permisos mínimos: publicar micrófono (y cámara solo en videollamadas), sin datos, sin metadatos, sin compartir pantalla, sin crear ni administrar salas. La identidad es el id de usuario que pone el servidor.
+- **Webhook de LiveKit:** ruta pública pero **firmada**: se verifica el JWT con nuestro secreto y el hash SHA-256 del cuerpo; solo se aceptan salas que son llamadas nuestras e identidades que estaban adentro.
+- **Credenciales:** en desarrollo LiveKit corre en modo `--dev` (claves públicas `devkey/secret`) y **solo escucha en tu PC**. En producción la API **no arranca** con esas claves ni sin `wss://`.
+- **Notificaciones push:** protocolo Web Push estándar (VAPID). El contenido va **cifrado** de punta a punta entre la API y el navegador y es mínimo: quién llama y el tipo de llamada, **nunca mensajes**. Las suscripciones se guardan **cifradas** (permiten mandarle avisos a esa persona). Para evitar **SSRF**, solo se aceptan direcciones `https` de los servicios oficiales (Google, Mozilla, Apple, Microsoft). Se borran al cerrar sesión, al dar de baja la cuenta y cuando el navegador las cancela.
+
+**Límites honestos de la Fase 4:**
+- Las llamadas **no son E2EE**: el servidor de medios (que controlamos) podría técnicamente acceder al audio/video mientras pasa. LiveKit admite E2EE con claves compartidas; queda para la Fase 7.
+- No se probó todavía con un servidor LiveKit real ni entre dos dispositivos (los tests usan un servidor de medios falso; la verificación de tokens y webhooks sí usa la librería real).
+- En Chrome, si un aviso de "llamada atendida en otro dispositivo" llega sin mostrar nada, el navegador puede mostrar un aviso genérico ocasional.
+- En iPhone las notificaciones solo funcionan con la app **instalada** (iOS 16.4 o superior).
+
 ## 3. Cómo funciona la recuperación de contraseña
 
 - **Por correo:** `¿Olvidé mi contraseña?` → enlace de un solo uso, válido 1 hora → nueva contraseña (con la misma política) → todas las sesiones se cierran.
@@ -81,6 +96,8 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | CSP estricta con *nonce* en la web | Usa `'unsafe-inline'` por requisito de Next.js sin nonces | Middleware con nonce |
 | Análisis antivirus de archivos adjuntos | ✅ Cliente ClamAV implementado y obligatorio en producción. En desarrollo puede quedar desactivado (aviso en consola) | Instalar `clamd` en el servidor |
 | Almacenamiento externo de archivos (S3/R2) | Disco local cifrado detrás del puerto `BlobStorage` | Adaptador S3/R2 al elegir proveedor |
+| Servidor de llamadas en producción | LiveKit en Docker solo para desarrollo | LiveKit propio (wss, credenciales propias, puertos UDP) o LiveKit Cloud |
+| Llamadas E2EE | No (el servidor de medios es de confianza) | Fase 7 |
 | Prueba de penetración externa | No realizada | **Obligatoria antes de lanzar** |
 | Moderación, denuncias y bajas por incumplimiento | Esquema preparado (`status: banned`, rol `support`) | Fase 6 |
 | Copias de seguridad y recuperación ante desastres | Depende del hosting elegido | Despliegue |

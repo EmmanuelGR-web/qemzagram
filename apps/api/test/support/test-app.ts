@@ -12,6 +12,7 @@ import { CallMediaPort, InvalidMediaEventError, type CallMediaEvent, type JoinTo
 import { loadEnv } from '../../src/config/env';
 import { DB, type Database } from '../../src/database/database.types';
 import { MailPort } from '../../src/mail/mail.port';
+import { PushSender, type PushOptions, type PushResult, type PushTarget } from '../../src/notifications/push.port';
 import { AntivirusPort, AntivirusUnavailableError, type ScanResult } from '../../src/media/antivirus.port';
 import { MediaRejectedError, MediaTranscoder, type TranscodeResult, type TranscodeTarget } from '../../src/media/transcoder.port';
 
@@ -106,12 +107,37 @@ export class FakeCallMedia extends CallMediaPort {
   }
 }
 
+/** Envío de push falso: registra lo enviado; las direcciones en `gone` simulan suscripciones vencidas. */
+export class FakePushSender extends PushSender {
+  readonly publicKey = 'B'.repeat(87);
+  sent: { endpoint: string; payload: Record<string, unknown>; options: PushOptions }[] = [];
+  gone = new Set<string>();
+  isAvailable(): boolean {
+    return true;
+  }
+  async send(target: PushTarget, payload: string, options: PushOptions): Promise<PushResult> {
+    if (this.gone.has(target.endpoint)) return 'gone';
+    this.sent.push({ endpoint: target.endpoint, payload: JSON.parse(payload) as Record<string, unknown>, options });
+    return 'sent';
+  }
+}
+
+/** Espera a que se cumpla una condición (para tareas que corren "en segundo plano"). */
+export async function waitUntil(check: () => boolean, timeoutMs = 3000): Promise<void> {
+  const started = Date.now();
+  while (!check()) {
+    if (Date.now() - started > timeoutMs) throw new Error('Tiempo de espera agotado');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 export interface TestContext {
   app: NestExpressApplication;
   mail: FakeMail;
   antivirus: FakeAntivirus;
   transcoder: FakeTranscoder;
   callMedia: FakeCallMedia;
+  push: FakePushSender;
   db: Database;
   close: () => Promise<void>;
 }
@@ -133,6 +159,7 @@ export async function createTestApp(): Promise<TestContext> {
   const antivirus = new FakeAntivirus();
   const transcoder = new FakeTranscoder();
   const callMedia = new FakeCallMedia();
+  const push = new FakePushSender();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(MailPort)
     .useValue(mail)
@@ -142,11 +169,13 @@ export async function createTestApp(): Promise<TestContext> {
     .useValue(transcoder)
     .overrideProvider(CallMediaPort)
     .useValue(callMedia)
+    .overrideProvider(PushSender)
+    .useValue(push)
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app, loadEnv());
   await app.init();
-  return { app, mail, antivirus, transcoder, callMedia, db: app.get(DB), close: () => app.close() };
+  return { app, mail, antivirus, transcoder, callMedia, push, db: app.get(DB), close: () => app.close() };
 }
 
 export interface TestUser {

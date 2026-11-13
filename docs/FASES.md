@@ -18,10 +18,14 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ **Visto por** (solo lo ve el dueño), borrar un estado antes de que venza, aviso en **tiempo real** a la audiencia y borrado inmediato al dar de baja la cuenta.
 - Texto cifrado en la base y archivos cifrados en reposo, con el mismo pipeline de seguridad de la Fase 2. Ver `SEGURIDAD.md` §2.2.
 
-## Fase 4 — Llamadas y videollamadas
-- **WebRTC**: llamadas 1 a 1 entre dos usuarios.
-- Grupos de hasta 10 personas: requieren un servidor **SFU** (por ejemplo LiveKit o mediasoup); la conexión directa entre todos no escala a 10 participantes. Incluye servidor TURN para atravesar redes restrictivas.
-- Notificaciones push (PWA/FCM) para llamadas entrantes.
+## ✅ Fase 4 — Llamadas y videollamadas
+- ✅ **LiveKit (SFU) para todas las llamadas**, 1 a 1 y grupos de hasta 10: un solo camino de código, nadie ve la IP de nadie y trae TURN incluido. Detrás del puerto `CallMediaPort` (en los tests, uno falso).
+- ✅ Llamada de voz o video desde cualquier chat; llamada entrante con timbre; silenciar, apagar/cambiar cámara y cortar. Una sola llamada en curso por chat; "perdida" a los 45 s; máximo 4 h.
+- ✅ Grupos: grilla de participantes y **"Unirme"** a una llamada en curso.
+- ✅ Registro en el chat: "Llamada perdida", "Videollamada · 3:12", "rechazada", "cancelada".
+- ✅ **Webhook firmado** de LiveKit: si alguien cierra el navegador, la llamada se actualiza sola.
+- ✅ **Notificaciones push** (Web Push estándar con VAPID, sin Firebase) de llamadas entrantes y perdidas, con la app cerrada.
+- 🔜 Para producción: servidor LiveKit propio con `wss://` y credenciales propias (o LiveKit Cloud), con los puertos de medios abiertos. Ver `SEGURIDAD.md` §2.3.
 
 ## Fase 5 — Personas cercanas
 - **Solo con consentimiento explícito (opt-in)**, ubicación **aproximada** (nunca coordenadas exactas), modo invisible, bloqueo de usuarios y límites contra rastreo por triangulación.

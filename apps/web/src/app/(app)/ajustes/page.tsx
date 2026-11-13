@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Modal } from '@/components/Modal';
 import { AUDIENCE_LABELS, StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
+import { disablePush, enablePush, getPushState, type PushState } from '@/lib/push';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { usePreferences, type ChatBackground, type FontSize, type ThemeMode } from '@/lib/preferences';
@@ -44,6 +45,21 @@ function privacySummary(privacy: StatusPrivacyDto): string {
   return 'Mi agenda (personas que también te agregaron)';
 }
 
+function pushHint(state: PushState | null): string {
+  switch (state) {
+    case 'unsupported':
+      return 'Este navegador no admite notificaciones. En iPhone, instalá la app desde "Compartir → Agregar a inicio".';
+    case 'unavailable':
+      return 'Las notificaciones no están activadas en el servidor.';
+    case 'denied':
+      return 'Bloqueaste las notificaciones: habilitalas desde la configuración del navegador.';
+    case 'enabled':
+      return 'Te avisamos en este dispositivo aunque la app esté cerrada.';
+    default:
+      return 'Recibí un aviso en este dispositivo aunque la app esté cerrada. Nunca incluye tus mensajes.';
+  }
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, setUser, logout } = useAuth();
@@ -52,6 +68,30 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState<'pause' | 'delete' | null>(null);
   const [statusPrivacy, setStatusPrivacy] = useState<StatusPrivacyDto | null>(null);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [pushState, setPushState] = useState<PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    getPushState()
+      .then(setPushState)
+      .catch(() => setPushState('unavailable'));
+  }, []);
+
+  async function togglePush(next: boolean) {
+    setPushBusy(true);
+    setError(null);
+    try {
+      if (next) setPushState(await enablePush());
+      else {
+        await disablePush();
+        setPushState('disabled');
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     api<StatusPrivacyDto>('/statuses/privacy')
@@ -100,6 +140,26 @@ export default function SettingsPage() {
         <div className="chat-preview messages" aria-hidden="true">
           <div className="message-row"><div className="bubble"><span className="bubble-text">¡Hola! Así se ve tu fondo.</span><time>10:24</time></div></div>
           <div className="message-row" data-mine="true"><div className="bubble"><span className="bubble-text">Se ve genial 🔴⚪</span><time>10:25</time></div></div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h3>Notificaciones</h3>
+        <div className="setting">
+          <div>
+            <strong>Avisarme de llamadas entrantes</strong>
+            <small>{pushHint(pushState)}</small>
+          </div>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={pushState === 'enabled'}
+              disabled={pushBusy || pushState === null || pushState === 'unsupported' || pushState === 'unavailable' || pushState === 'denied'}
+              onChange={(event) => void togglePush(event.target.checked)}
+              aria-label="Avisarme de llamadas entrantes"
+            />
+            <span />
+          </label>
         </div>
       </section>
 

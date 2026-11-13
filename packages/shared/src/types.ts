@@ -189,6 +189,20 @@ export interface CallJoinDto {
   url: string;
 }
 
+/**
+ * Contenido de una notificación push. Es MÍNIMO a propósito: nunca lleva texto de mensajes;
+ * viaja cifrado de punta a punta entre la API y el navegador (protocolo Web Push).
+ */
+export type PushPayload =
+  | { type: 'call'; callId: string; conversationId: string; kind: CallKind; title: string; group: boolean }
+  /** La llamada dejó de sonar (la atendieron, la rechazaron o terminó): cerrar la notificación. */
+  | { type: 'call-closed'; callId: string; conversationId: string; kind: CallKind; title: string; missed: boolean };
+
+export interface PushConfigDto {
+  /** Clave pública VAPID (null = notificaciones deshabilitadas en el servidor). */
+  publicKey: string | null;
+}
+
 export interface ApiErrorBody {
   statusCode: number;
   message: string;

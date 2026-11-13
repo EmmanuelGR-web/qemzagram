@@ -40,7 +40,15 @@ const envSchema = z.object({
   /** Credenciales de LiveKit. Vacías = llamadas deshabilitadas. */
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
+  /** Notificaciones push (Web Push). Generalas con: npx web-push generate-vapid-keys. Vacías = sin push. */
+  VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/, 'Clave VAPID pública inválida').optional(),
+  VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/, 'Clave VAPID privada inválida').optional(),
+  /** Contacto para los servicios de push (mailto: o https:). */
+  VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/)/, 'Usá mailto:correo o https://sitio').default('mailto:soporte@qemzagram.local'),
 }).superRefine((env, context) => {
+  if (Boolean(env.VAPID_PUBLIC_KEY) !== Boolean(env.VAPID_PRIVATE_KEY)) {
+    context.addIssue({ code: 'custom', path: ['VAPID_PRIVATE_KEY'], message: 'VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY van juntas' });
+  }
   if (env.NODE_ENV === 'production' && !env.CLAMAV_HOST) {
     context.addIssue({ code: 'custom', path: ['CLAMAV_HOST'], message: 'En producción el antivirus (ClamAV) es obligatorio' });
   }
