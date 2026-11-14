@@ -71,6 +71,25 @@ export class NearbyRepository {
     return rows.flatMap((row) => (row.row === null || row.col === null ? [] : [{ user: row.user, row: row.row, col: row.col }]));
   }
 
+  /** `targetId` si hoy es visible para `viewerId` (mismas reglas que la búsqueda); si no, undefined. */
+  async findCandidate(viewerId: string, targetId: string, now: Date): Promise<NearbyCandidate | undefined> {
+    const [row] = await this.db
+      .select({ user: users, row: nearbyPresence.cellRow, col: nearbyPresence.cellCol })
+      .from(nearbyPresence)
+      .innerJoin(users, eq(users.id, nearbyPresence.userId))
+      .where(
+        and(
+          eq(nearbyPresence.userId, targetId),
+          ne(nearbyPresence.userId, viewerId),
+          gt(nearbyPresence.visibleUntil, now),
+          eq(users.status, 'active'),
+          noBlockBetween(viewerId, nearbyPresence.userId),
+        ),
+      )
+      .limit(1);
+    return row && row.row !== null && row.col !== null ? { user: row.user, row: row.row, col: row.col } : undefined;
+  }
+
   async remove(userId: string): Promise<void> {
     await this.db.delete(nearbyPresence).where(eq(nearbyPresence.userId, userId));
   }

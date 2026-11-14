@@ -71,6 +71,13 @@
       "when": 1794619683985,
       "tag": "0009_personas_cercanas",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794620017153,
+      "tag": "0010_saludos",
+      "breakpoints": true
     }
   ]
 }

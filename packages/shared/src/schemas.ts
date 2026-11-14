@@ -221,3 +221,6 @@ export const nearbyCellSchema = z
 
 /** Activar (o renovar) la visibilidad: exige el consentimiento explícito en cada pedido. */
 export const nearbyPresenceSchema = z.object({ cell: nearbyCellSchema, consent: z.literal(true) }).strict();
+
+/** Saludar a alguien cercano (solo se acepta a quien aparece en tu lista de cercanos). */
+export const nearbyGreetSchema = z.object({ userId: z.string().uuid() }).strict();

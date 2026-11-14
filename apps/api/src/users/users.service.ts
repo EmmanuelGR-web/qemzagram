@@ -7,6 +7,7 @@ import { toLimitedUser, toPublicUser, toSelfUser } from '../common/mappers';
 import { ContactsRepository } from '../database/repositories/contacts.repository';
 import { SessionsRepository } from '../database/repositories/sessions.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { GreetingsService } from '../nearby/greetings.service';
 import { NearbyService } from '../nearby/nearby.service';
 import { PushService } from '../notifications/push.service';
 import { StatusesService } from '../statuses/statuses.service';
@@ -26,6 +27,7 @@ export class UsersService {
     private readonly push: PushService,
     private readonly blocks: BlocksService,
     private readonly nearby: NearbyService,
+    private readonly greetings: GreetingsService,
   ) {}
 
   async getMe(userId: string): Promise<SelfUser> {
@@ -109,6 +111,7 @@ export class UsersService {
     await this.push.removeAllFor(userId);
     await this.blocks.removeAllFor(userId);
     await this.nearby.removeAllFor(userId);
+    await this.greetings.removeAllFor(userId);
     await this.audit.log('account.deleted', { userId });
   }
 

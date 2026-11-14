@@ -2,6 +2,7 @@ import { ConflictException, HttpException, HttpStatus, Injectable } from '@nestj
 import {
   NEARBY_CELL_DEGREES,
   NEARBY_DISTANCES,
+  NEARBY_GREETING_HOURS,
   NEARBY_MAX_CHANGES_PER_DAY,
   NEARBY_MAX_KM,
   NEARBY_MAX_ROW,
@@ -11,12 +12,15 @@ import {
   nearbyCellDistanceKm,
   nearbyDistanceBucket,
   type NearbyCell,
+  type NearbyGreetingState,
   type NearbyPersonDto,
   type NearbyStatusDto,
 } from '@qemzagram/shared';
 import { randomInt } from 'node:crypto';
 import { AuditService } from '../common/audit.service';
-import { NearbyRepository } from '../database/repositories/nearby.repository';
+import { ContactsRepository } from '../database/repositories/contacts.repository';
+import { GreetingsRepository } from '../database/repositories/greetings.repository';
+import { NearbyRepository, type NearbyCandidate } from '../database/repositories/nearby.repository';
 import type { NearbyPresenceRow } from '../database/schema';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -36,6 +40,8 @@ export class NearbyService {
   constructor(
     private readonly nearby: NearbyRepository,
     private readonly audit: AuditService,
+    private readonly greetings: GreetingsRepository,
+    private readonly contacts: ContactsRepository,
   ) {}
 
   async status(userId: string, now = new Date()): Promise<NearbyStatusDto> {
@@ -92,23 +98,52 @@ export class NearbyService {
   }
 
   async list(userId: string, now = new Date()): Promise<NearbyPersonDto[]> {
+    const origin = await this.requireVisibleCell(userId, now);
+    const candidates = await this.nearby.listCandidates(userId, Math.max(0, origin.row - ROW_SPAN), Math.min(NEARBY_MAX_ROW - 1, origin.row + ROW_SPAN), now);
+
+    const inRange = candidates.flatMap((candidate) => {
+      const distance = nearbyDistanceBucket(nearbyCellDistanceKm(origin, candidate));
+      return distance ? [{ candidate, distance }] : [];
+    });
+    const ids = inRange.map((item) => item.candidate.user.id);
+    const since = new Date(now.getTime() - NEARBY_GREETING_HOURS * 60 * 60 * 1000);
+    const [connected, greetings] = await Promise.all([this.contacts.mutualAmong(userId, ids), this.greetings.listBetween(userId, ids, since)]);
+
+    const byBucket = new Map(NEARBY_DISTANCES.map((bucket) => [bucket, [] as NearbyPersonDto[]]));
+    for (const { candidate, distance } of inRange) {
+      const otherId = candidate.user.id;
+      const received = greetings.find((greeting) => greeting.fromId === otherId && greeting.status === 'pending');
+      // Un saludo que YO rechacé no vuelve a aparecer como "recibido"; uno que me rechazaron sigue como "enviado".
+      const sent = greetings.find((greeting) => greeting.toId === otherId);
+      const state: NearbyGreetingState = connected.has(otherId) ? 'connected' : received ? 'received' : sent ? 'sent' : 'none';
+      byBucket.get(distance)?.push({
+        user: { id: otherId, displayName: candidate.user.displayName, avatarUrl: candidate.user.avatarUrl },
+        distance,
+        greeting: state,
+        greetingId: state === 'received' && received ? received.id : null,
+        tag: state === 'connected' ? candidate.user.tag : null,
+      });
+    }
+    return NEARBY_DISTANCES.flatMap((bucket) => shuffle(byBucket.get(bucket) ?? [])).slice(0, NEARBY_RESULTS_MAX);
+  }
+
+  /**
+   * `targetId` si AHORA aparece en la lista de cercanos de `userId` (los dos visibles, a menos de 25 km,
+   * sin bloqueo). Lo usan los saludos: solo se puede saludar a quien está cerca de verdad.
+   */
+  async findNearby(userId: string, targetId: string, now = new Date()): Promise<NearbyCandidate | undefined> {
+    const origin = await this.requireVisibleCell(userId, now);
+    const candidate = await this.nearby.findCandidate(userId, targetId, now);
+    if (!candidate || !nearbyDistanceBucket(nearbyCellDistanceKm(origin, candidate))) return undefined;
+    return candidate;
+  }
+
+  private async requireVisibleCell(userId: string, now: Date): Promise<NearbyCell> {
     const me = await this.nearby.get(userId);
     if (!me || !isVisible(me, now) || me.cellRow === null || me.cellCol === null) {
       throw new ConflictException({ code: 'NEARBY_NOT_VISIBLE', message: 'Activá tu visibilidad para ver a personas cercanas' });
     }
-    const origin = { row: me.cellRow, col: me.cellCol };
-    const candidates = await this.nearby.listCandidates(userId, Math.max(0, origin.row - ROW_SPAN), Math.min(NEARBY_MAX_ROW - 1, origin.row + ROW_SPAN), now);
-
-    const byBucket = new Map(NEARBY_DISTANCES.map((bucket) => [bucket, [] as NearbyPersonDto[]]));
-    for (const candidate of candidates) {
-      const distance = nearbyDistanceBucket(nearbyCellDistanceKm(origin, candidate));
-      if (!distance) continue;
-      byBucket.get(distance)?.push({
-        user: { id: candidate.user.id, displayName: candidate.user.displayName, avatarUrl: candidate.user.avatarUrl },
-        distance,
-      });
-    }
-    return NEARBY_DISTANCES.flatMap((bucket) => shuffle(byBucket.get(bucket) ?? [])).slice(0, NEARBY_RESULTS_MAX);
+    return { row: me.cellRow, col: me.cellCol };
   }
 
   hideExpired(now = new Date()): Promise<number> {

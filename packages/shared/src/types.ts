@@ -1,5 +1,5 @@
 import type { ATTACHMENT_KINDS, CALL_END_REASONS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
-import type { NearbyDistance } from './nearby';
+import type { NearbyDistance, NearbyGreetingState } from './nearby';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
 
@@ -232,6 +232,10 @@ export interface ServerToClientEvents {
   'call:incoming': (call: CallDto) => void;
   /** Cambió el estado de una llamada en la que participás (alguien atendió, cortó, terminó…). */
   'call:updated': (call: CallDto) => void;
+  /** Alguien cercano te saludó. */
+  'nearby:greeting': (greeting: NearbyGreetingDto) => void;
+  /** Aceptaron tu saludo (o se saludaron mutuamente): ya está en tu agenda. */
+  'nearby:connected': (contact: ContactDto) => void;
 }
 
 /* ---------- Fase 5: personas cercanas ---------- */
@@ -256,4 +260,27 @@ export interface NearbyPersonDto {
   user: NearbyUserDto;
   /** Rango de distancia; nunca el número exacto. */
   distance: NearbyDistance;
+  greeting: NearbyGreetingState;
+  /** Id del saludo RECIBIDO (para aceptarlo o rechazarlo desde la lista); si no, null. */
+  greetingId: string | null;
+  /** El tag solo se ve cuando ya están conectados (agenda mutua). */
+  tag: string | null;
+}
+
+/** Un saludo pendiente (recibido o enviado). Nunca dice si fue rechazado. */
+export interface NearbyGreetingDto {
+  id: string;
+  user: NearbyUserDto;
+  createdAt: string;
+}
+
+/** Resultado de saludar: queda enviado, o se conectaron (la otra persona ya te había saludado). */
+export interface NearbyGreetResultDto {
+  state: 'sent' | 'connected';
+  contact: ContactDto | null;
+}
+
+export interface NearbyGreetingsDto {
+  received: NearbyGreetingDto[];
+  sent: NearbyGreetingDto[];
 }

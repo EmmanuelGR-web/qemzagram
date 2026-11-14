@@ -28,6 +28,7 @@ export const callKindEnum = pgEnum('call_kind', ['audio', 'video']);
 export const callStatusEnum = pgEnum('call_status', ['ringing', 'active', 'ended']);
 export const callEndReasonEnum = pgEnum('call_end_reason', ['completed', 'missed', 'declined', 'cancelled', 'failed']);
 export const callParticipantStateEnum = pgEnum('call_participant_state', ['invited', 'joined', 'left', 'declined']);
+export const greetingStatusEnum = pgEnum('greeting_status', ['pending', 'accepted', 'declined']);
 export const statusAudienceListEnum = pgEnum('status_audience_list', ['except', 'only']);
 
 export const users = pgTable('users', {
@@ -366,6 +367,31 @@ export const nearbyPresence = pgTable(
   (table) => [index('nearby_presence_cell_idx').on(table.cellRow, table.cellCol), index('nearby_presence_until_idx').on(table.visibleUntil)],
 );
 
+/**
+ * Saludos de "Personas cercanas". Al aceptarse, las dos personas se agregan mutuamente a la agenda.
+ * Uno por pareja y dirección (si se rechaza, no se puede insistir).
+ */
+export const nearbyGreetings = pgTable(
+  'nearby_greetings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    fromId: uuid('from_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    toId: uuid('to_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: greetingStatusEnum('status').notNull().default('pending'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    respondedAt: ts('responded_at'),
+  },
+  (table) => [
+    uniqueIndex('nearby_greetings_pair_idx').on(table.fromId, table.toId),
+    index('nearby_greetings_to_idx').on(table.toId, table.status),
+    index('nearby_greetings_from_created_idx').on(table.fromId, table.createdAt),
+  ],
+);
+
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
 export const auditLog = pgTable(
   'audit_log',
@@ -396,3 +422,4 @@ export type CallParticipantRow = typeof callParticipants.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type UserBlockRow = typeof userBlocks.$inferSelect;
 export type NearbyPresenceRow = typeof nearbyPresence.$inferSelect;
+export type NearbyGreetingRow = typeof nearbyGreetings.$inferSelect;

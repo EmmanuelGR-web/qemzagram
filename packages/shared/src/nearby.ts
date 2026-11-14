@@ -20,6 +20,13 @@ export const NEARBY_RESULTS_MAX = 50;
 export const NEARBY_MIN_CHANGE_SECONDS = 120;
 export const NEARBY_MAX_CHANGES_PER_DAY = 20;
 
+/** Saludos: como mucho 20 por día; un saludo sin responder vence a las 24 h. */
+export const NEARBY_GREETINGS_PER_DAY = 20;
+export const NEARBY_GREETING_HOURS = 24;
+/** Relación con alguien cercano: nada, saludo enviado, saludo recibido o ya conectados (agenda mutua). */
+export const NEARBY_GREETING_STATES = ['none', 'sent', 'received', 'connected'] as const;
+export type NearbyGreetingState = (typeof NEARBY_GREETING_STATES)[number];
+
 export const NEARBY_DISTANCES = ['lt2', '2to5', '5to10', '10to25'] as const;
 export type NearbyDistance = (typeof NEARBY_DISTANCES)[number];
 export const NEARBY_DISTANCE_LABELS: Record<NearbyDistance, string> = {
