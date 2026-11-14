@@ -440,3 +440,12 @@ export interface TotpSetupDto {
 export interface BackupCodesDto {
   codes: string[];
 }
+
+/* ---------- Fase 7A: prueba de trabajo (CAPTCHA propio) ---------- */
+
+export interface PowChallengeDto {
+  challenge: string;
+  /** Bits en cero que tiene que tener el resumen. */
+  difficulty: number;
+  expiresAt: string;
+}

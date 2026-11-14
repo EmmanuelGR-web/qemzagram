@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { MailIcon } from '@/components/icons';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
+import { protectedApi } from '@/lib/pow';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -16,7 +17,7 @@ export default function ForgotPasswordPage() {
     setBusy(true);
     setError(null);
     try {
-      await api('/auth/forgot-password', { body: { email } });
+      await protectedApi('forgot', '/auth/forgot-password', { email });
       setSent(true);
     } catch (caught) {
       setError(errorMessage(caught));

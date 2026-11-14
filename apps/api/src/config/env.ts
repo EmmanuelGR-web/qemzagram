@@ -44,8 +44,15 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/, 'Clave VAPID pública inválida').optional(),
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/, 'Clave VAPID privada inválida').optional(),
   /** Contacto para los servicios de push (mailto: o https:). */
+  /** Prueba de trabajo anti-bots en registro, login, recuperación y apelación. Obligatoria en producción. */
+  POW_ENABLED: z.enum(['true', 'false']).default('true'),
+  /** Bits en cero exigidos (cada +1 duplica el trabajo). 16 ≈ 65.000 intentos ≈ 1 s en un celular. */
+  POW_DIFFICULTY: z.coerce.number().int().min(0).max(24).default(16),
   VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/)/, 'Usá mailto:correo o https://sitio').default('mailto:soporte@qemzagram.local'),
 }).superRefine((env, context) => {
+  if (env.NODE_ENV === 'production' && (env.POW_ENABLED !== 'true' || env.POW_DIFFICULTY < 12)) {
+    context.addIssue({ code: 'custom', path: ['POW_ENABLED'], message: 'En producción la prueba anti-bots es obligatoria (POW_ENABLED=true y POW_DIFFICULTY >= 12)' });
+  }
   if (Boolean(env.VAPID_PUBLIC_KEY) !== Boolean(env.VAPID_PRIVATE_KEY)) {
     context.addIssue({ code: 'custom', path: ['VAPID_PRIVATE_KEY'], message: 'VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY van juntas' });
   }

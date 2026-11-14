@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { PasswordField } from '@/components/PasswordField';
 import { MailIcon } from '@/components/icons';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
+import { protectedApi } from '@/lib/pow';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -31,7 +32,7 @@ export default function RegisterPage() {
     }
     setBusy(true);
     try {
-      await api('/auth/register', { body: parsed.data });
+      await protectedApi('register', '/auth/register', parsed.data);
       setDone(true);
     } catch (caught) {
       setError(errorMessage(caught));

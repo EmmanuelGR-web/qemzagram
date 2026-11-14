@@ -16,6 +16,8 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   form?: FormData;
+  /** Cabeceras extra (por ejemplo, la solución de la prueba anti-bots). */
+  headers?: Record<string, string>;
 }
 
 let refreshing: Promise<boolean> | null = null;
@@ -39,7 +41,7 @@ export async function api<T = void>(path: string, options: RequestOptions = {}):
     fetch(`/api${path}`, {
       method: options.method ?? (hasBody ? 'POST' : 'GET'),
       credentials: 'same-origin',
-      headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      headers: { ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
       body: options.form ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
     });
 

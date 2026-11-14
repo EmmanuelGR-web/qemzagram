@@ -157,7 +157,8 @@ export interface TestContext {
   close: () => Promise<void>;
 }
 
-export async function createTestApp(): Promise<TestContext> {
+/** `env`: variables extra para esta app (por ejemplo, activar la prueba anti-bots en su propia suite). */
+export async function createTestApp(env: Record<string, string> = {}): Promise<TestContext> {
   Object.assign(process.env, {
     NODE_ENV: 'test',
     DATABASE_URL: 'pglite://memory',
@@ -169,6 +170,10 @@ export async function createTestApp(): Promise<TestContext> {
     UPLOAD_DIR: mkdtempSync(join(tmpdir(), 'qz-uploads-')),
     MEDIA_DIR: mkdtempSync(join(tmpdir(), 'qz-media-')),
     RUN_MIGRATIONS: 'true',
+    // La prueba de trabajo se prueba en pow.spec.ts; en el resto se apaga para no resolverla en cada login.
+    POW_ENABLED: 'false',
+    POW_DIFFICULTY: '16',
+    ...env,
   });
   const mail = new FakeMail();
   const antivirus = new FakeAntivirus();

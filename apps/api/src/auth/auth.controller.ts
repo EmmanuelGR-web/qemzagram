@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   appealSchema,
@@ -18,6 +18,7 @@ import {
 } from '@qemzagram/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { clientMeta, CurrentUser, Public, type AuthUser } from '../common/decorators';
+import { PowGuard, RequiresPow } from '../captcha/pow.guard';
 import { ZodPipe } from '../common/zod.pipe';
 import { ENV, type AppEnv } from '../config/env';
 import { MFA_LOGIN_MINUTES } from '@qemzagram/shared';
@@ -38,6 +39,8 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @UseGuards(PowGuard)
+  @RequiresPow('register')
   @HttpCode(202)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async register(@Body(new ZodPipe(registerSchema)) body: RegisterInput, @Req() request: Request) {
@@ -56,6 +59,8 @@ export class AuthController {
 
   @Public()
   @Post('resend-verification')
+  @UseGuards(PowGuard)
+  @RequiresPow('resend')
   @HttpCode(202)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   async resendVerification(@Body(new ZodPipe(forgotPasswordSchema)) body: { email: string }) {
@@ -65,6 +70,8 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @UseGuards(PowGuard)
+  @RequiresPow('login')
   @HttpCode(200)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async login(
@@ -133,6 +140,8 @@ export class AuthController {
   /** Apelación de una cuenta dada de baja (pública: esa cuenta no puede iniciar sesión). */
   @Public()
   @Post('appeal')
+  @UseGuards(PowGuard)
+  @RequiresPow('appeal')
   @HttpCode(202)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   async appeal(@Body(new ZodPipe(appealSchema)) body: AppealInput, @Req() request: Request) {
@@ -142,6 +151,8 @@ export class AuthController {
 
   @Public()
   @Post('forgot-password')
+  @UseGuards(PowGuard)
+  @RequiresPow('forgot')
   @HttpCode(202)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   async forgotPassword(@Body(new ZodPipe(forgotPasswordSchema)) body: { email: string }, @Req() request: Request) {

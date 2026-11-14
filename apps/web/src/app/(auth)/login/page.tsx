@@ -8,6 +8,7 @@ import { PasswordField } from '@/components/PasswordField';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { PasskeyCancelled, passkeysSupported, signWithPasskey } from '@/lib/passkeys';
+import { protectedApi } from '@/lib/pow';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function LoginPage() {
     setError(null);
     setNotice(null);
     try {
-      const result = await api<LoginResultDto>('/auth/login', { body: { identifier, password } });
+      const result = await protectedApi<LoginResultDto>('login', '/auth/login', { identifier, password });
       if (result.mfaRequired) {
         setMfaMethods(result.methods);
         setMfaMethod(result.methods.includes('totp') ? 'totp' : 'backup');
@@ -92,7 +93,7 @@ export default function LoginPage() {
 
   async function resend() {
     try {
-      await api('/auth/resend-verification', { body: { email: resendEmail } });
+      await protectedApi('resend', '/auth/resend-verification', { email: resendEmail });
       setNotice('Listo. Si el correo existe, te enviamos un nuevo enlace de verificación.');
     } catch (caught) {
       setError(errorMessage(caught));

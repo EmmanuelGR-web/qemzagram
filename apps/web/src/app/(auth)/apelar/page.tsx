@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { MailIcon } from '@/components/icons';
 import { PasswordField } from '@/components/PasswordField';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
+import { protectedApi } from '@/lib/pow';
 
 /**
  * Apelar la baja de una cuenta. La cuenta no puede iniciar sesión, así que se piden las mismas
@@ -24,7 +25,7 @@ export default function AppealPage() {
     setBusy(true);
     setError(null);
     try {
-      await api('/auth/appeal', { body: { identifier, password, message } });
+      await protectedApi('appeal', '/auth/appeal', { identifier, password, message });
       setSent(true);
     } catch (caught) {
       setError(errorMessage(caught));

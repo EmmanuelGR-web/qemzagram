@@ -17,6 +17,8 @@ import { MailModule } from './mail/mail.module';
 import { MediaModule } from './media/media.module';
 import { NearbyModule } from './nearby/nearby.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { CaptchaModule } from './captcha/captcha.module';
+import { KvModule } from './kv/kv.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReportsModule } from './reports/reports.module';
 import { SupportModule } from './support/support.module';
@@ -32,6 +34,8 @@ import { UsersModule } from './users/users.module';
     CommonModule,
     MailModule,
     StorageModule,
+    KvModule,
+    CaptchaModule,
     ThrottlerModule.forRootAsync({
       inject: [ENV],
       useFactory: (env: AppEnv) => ({
