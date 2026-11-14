@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import { DB, type Database } from '../database.types';
 import { users, type NewUserRow, type UserRow } from '../schema';
 
@@ -18,6 +18,11 @@ export type UserPatch = Partial<
     | 'lockedUntil'
     | 'email'
     | 'tag'
+    | 'mfaEnabled'
+    | 'totpSecretEncrypted'
+    | 'totpPendingEncrypted'
+    | 'totpEnabledAt'
+    | 'totpLastStep'
   >
 >;
 
@@ -66,6 +71,19 @@ export class UsersRepository {
 
   async listByRole(role: UserRow['role']): Promise<UserRow[]> {
     return this.db.select().from(users).where(eq(users.role, role));
+  }
+
+  /**
+   * Avanza el último paso TOTP usado SOLO si el nuevo es mayor (atómico): si llegan dos pedidos
+   * a la vez con el mismo código, uno solo gana.
+   */
+  async advanceTotpStep(id: string, step: number): Promise<boolean> {
+    const rows = await this.db
+      .update(users)
+      .set({ totpLastStep: step })
+      .where(and(eq(users.id, id), or(isNull(users.totpLastStep), lt(users.totpLastStep, step))))
+      .returning({ id: users.id });
+    return rows.length > 0;
   }
 
   async update(id: string, patch: UserPatch): Promise<UserRow | undefined> {

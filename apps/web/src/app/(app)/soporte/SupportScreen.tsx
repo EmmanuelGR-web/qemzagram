@@ -53,6 +53,15 @@ export function SupportScreen() {
     );
   }
 
+  if (!user.mfaEnabled) {
+    return (
+      <div className="page">
+        <h1>Soporte</h1>
+        <p className="alert alert-error">Para usar el panel de soporte tenés que activar la verificación en dos pasos en Ajustes → Seguridad.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="page support-page">
       <h1>Soporte</h1>

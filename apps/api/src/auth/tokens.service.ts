@@ -1,7 +1,8 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ENV, type AppEnv } from '../config/env';
-import { ACCESS_TTL_SECONDS, AUDIENCE_ACCESS, AUDIENCE_WS, JWT_ISSUER, WS_TICKET_TTL_SECONDS } from './auth.constants';
+import { MFA_LOGIN_MINUTES } from '@qemzagram/shared';
+import { ACCESS_TTL_SECONDS, AUDIENCE_ACCESS, AUDIENCE_MFA, AUDIENCE_WS, JWT_ISSUER, WS_TICKET_TTL_SECONDS } from './auth.constants';
 
 @Injectable()
 export class TokensService {
@@ -45,6 +46,25 @@ export class TokensService {
 
   verifyWsTicket(ticket: string): Promise<string> {
     return this.verify(ticket, this.env.JWT_TICKET_SECRET, AUDIENCE_WS);
+  }
+
+  /** Ticket del segundo paso del login: prueba que la contraseña ya se verificó. NO es una sesión. */
+  signMfaTicket(userId: string): Promise<string> {
+    return this.jwt.signAsync(
+      {},
+      {
+        subject: userId,
+        secret: this.env.JWT_TICKET_SECRET,
+        expiresIn: MFA_LOGIN_MINUTES * 60,
+        audience: AUDIENCE_MFA,
+        issuer: JWT_ISSUER,
+        algorithm: 'HS256',
+      },
+    );
+  }
+
+  verifyMfaTicket(ticket: string): Promise<string> {
+    return this.verify(ticket, this.env.JWT_TICKET_SECRET, AUDIENCE_MFA);
   }
 
   private async verify(token: string, secret: string, audience: string): Promise<string> {

@@ -12,6 +12,9 @@ import { CallMediaPort, InvalidMediaEventError, type CallMediaEvent, type JoinTo
 import { loadEnv } from '../../src/config/env';
 import { DB, type Database } from '../../src/database/database.types';
 import { MailPort } from '../../src/mail/mail.port';
+import { totpCode } from '../../src/mfa/totp';
+import { users } from '../../src/database/schema';
+import { eq } from 'drizzle-orm';
 import { PushSender, type PushOptions, type PushResult, type PushTarget } from '../../src/notifications/push.port';
 import { AntivirusPort, AntivirusUnavailableError, type ScanResult } from '../../src/media/antivirus.port';
 import { MediaRejectedError, MediaTranscoder, type TranscodeResult, type TranscodeTarget } from '../../src/media/transcoder.port';
@@ -27,6 +30,7 @@ export class FakeMail extends MailPort {
   passwordChanged: string[] = [];
   banned: string[] = [];
   appealResults: { to: string; accepted: boolean }[] = [];
+  securityAlerts: { to: string; event: string }[] = [];
 
   async sendVerification(to: string, _name: string, token: string): Promise<void> {
     this.verifications.push({ to, token });
@@ -45,6 +49,9 @@ export class FakeMail extends MailPort {
   }
   async sendAppealResult(to: string, _name: string, accepted: boolean): Promise<void> {
     this.appealResults.push({ to, accepted });
+  }
+  async sendSecurityAlert(to: string, _name: string, event: string): Promise<void> {
+    this.securityAlerts.push({ to, event });
   }
   lastVerification(to: string): string {
     const found = [...this.verifications].reverse().find((item) => item.to === to);
@@ -210,4 +217,23 @@ export function setCookies(response: { headers: Record<string, unknown> }): stri
   const value = response.headers['set-cookie'];
   if (Array.isArray(value)) return value as string[];
   return typeof value === 'string' ? [value] : [];
+}
+
+/**
+ * Activa el 2FA (app autenticadora) de una cuenta y devuelve el secreto y los códigos de respaldo.
+ * Como el mismo código no sirve dos veces, `freshCode()` "olvida" el último paso usado (solo en tests)
+ * y devuelve el código actual.
+ */
+export async function enableMfa(ctx: TestContext, user: TestUser): Promise<{ secret: string; backupCodes: string[]; freshCode: () => Promise<string> }> {
+  const setup = await user.agent.post('/auth/mfa/totp/setup').send({ password: user.password }).expect(200);
+  const secret = (setup.body as { secret: string }).secret;
+  const enabled = await user.agent.post('/auth/mfa/totp/enable').send({ code: totpCode(secret) }).expect(200);
+  return {
+    secret,
+    backupCodes: (enabled.body as { codes: string[] }).codes,
+    freshCode: async () => {
+      await ctx.db.update(users).set({ totpLastStep: null }).where(eq(users.id, user.id));
+      return totpCode(secret);
+    },
+  };
 }

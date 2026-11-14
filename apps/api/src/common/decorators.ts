@@ -9,6 +9,7 @@ export interface AuthUser {
   id: string;
   tag: string;
   role: 'user' | 'support';
+  mfaEnabled: boolean;
 }
 
 export interface AuthedRequest extends Request {

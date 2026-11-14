@@ -13,6 +13,8 @@ import {
   PASSWORD_ISSUE_MESSAGES,
   type AppealInput,
   type LoginInput,
+  type MfaMethod,
+  type MfaVerifyInput,
   type RegisterInput,
   type ResetPasswordInput,
   type SelfUser,
@@ -28,6 +30,7 @@ import { SessionsRepository } from '../database/repositories/sessions.repository
 import { UsersRepository } from '../database/repositories/users.repository';
 import type { UserRow } from '../database/schema';
 import { MailPort } from '../mail/mail.port';
+import { MfaService } from '../mfa/mfa.service';
 import {
   LOCK_DURATION_MS,
   MAX_FAILED_LOGINS,
@@ -44,6 +47,12 @@ export interface AuthResult {
   refreshToken: string;
 }
 
+/** Resultado del primer paso: sesión lista, o ticket para el segundo factor. */
+export type LoginOutcome = { kind: 'session'; session: AuthResult } | { kind: 'mfa'; ticket: string; methods: MfaMethod[] };
+
+const INVALID_MFA = { code: 'INVALID_CODE', message: 'El código no es válido o ya se usó' };
+const MFA_EXPIRED = { code: 'MFA_EXPIRED', message: 'Pasó demasiado tiempo. Volvé a ingresar tu contraseña.' };
+
 const INVALID_CREDENTIALS = { code: 'INVALID_CREDENTIALS', message: 'Credenciales incorrectas' };
 const INVALID_TOKEN = { code: 'TOKEN_INVALID', message: 'El enlace es inválido o ya venció' };
 
@@ -58,6 +67,7 @@ export class AuthService {
     private readonly mail: MailPort,
     private readonly audit: AuditService,
     private readonly appeals: AppealsRepository,
+    private readonly mfa: MfaService,
   ) {}
 
   /**
@@ -109,21 +119,75 @@ export class AuthService {
     await this.sendVerification(user.id, user.email, user.displayName);
   }
 
-  async login(input: LoginInput, meta: ClientMeta): Promise<AuthResult> {
+  async login(input: LoginInput, meta: ClientMeta): Promise<LoginOutcome> {
     const user = await this.checkCredentials(input.identifier, input.password, meta);
+    this.assertCanSignIn(user);
 
-    // Estos chequeos van DESPUÉS de validar la contraseña: nadie ajeno aprende el estado de la cuenta.
+    // Con segundo factor: todavía NO hay sesión, solo un ticket de 5 minutos para el código.
+    if (user.mfaEnabled) {
+      await this.audit.log('login.mfa_required', { userId: user.id, ip: meta.ip });
+      return { kind: 'mfa', ticket: await this.tokens.signMfaTicket(user.id), methods: await this.mfa.methodsFor(user) };
+    }
+    return { kind: 'session', session: await this.completeLogin(user, meta, 'password') };
+  }
+
+  /**
+   * Segundo paso del login. Los códigos fallidos cuentan para el MISMO bloqueo que las contraseñas
+   * (5 intentos → 15 minutos), así que no se pueden probar los 6 dígitos por fuerza bruta.
+   */
+  async verifyMfa(ticket: string | undefined, input: MfaVerifyInput, meta: ClientMeta): Promise<AuthResult> {
+    if (!ticket) throw new UnauthorizedException(MFA_EXPIRED);
+    let userId: string;
+    try {
+      userId = await this.tokens.verifyMfaTicket(ticket);
+    } catch {
+      throw new UnauthorizedException(MFA_EXPIRED);
+    }
+    const user = await this.users.findById(userId);
+    if (!user || user.status === 'deleted' || !user.mfaEnabled) throw new UnauthorizedException(MFA_EXPIRED);
+    this.assertCanSignIn(user);
+    this.assertNotLocked(user, meta);
+
+    if (!(await this.mfa.verifyLoginFactor(user, input))) {
+      await this.registerFailure(user, meta);
+      await this.audit.log('login.mfa_failed', { userId: user.id, ip: meta.ip, meta: { method: input.method } });
+      throw new UnauthorizedException(INVALID_MFA);
+    }
+    return this.completeLogin(user, meta, input.method);
+  }
+
+  /** Estos chequeos van DESPUÉS de validar la contraseña: nadie ajeno aprende el estado de la cuenta. */
+  private assertCanSignIn(user: UserRow): void {
     if (!user.emailVerifiedAt) {
       throw new ForbiddenException({ code: 'EMAIL_NOT_VERIFIED', message: 'Verificá tu correo para activar la cuenta' });
     }
     if (user.status === 'banned') {
       throw new ForbiddenException({ code: 'ACCOUNT_BANNED', message: 'Esta cuenta fue dada de baja por incumplir las normas' });
     }
+  }
 
+  private async completeLogin(user: UserRow, meta: ClientMeta, method: 'password' | MfaMethod): Promise<AuthResult> {
     // Una cuenta pausada por su dueño se reactiva al volver a iniciar sesión.
     const active = await this.users.update(user.id, { status: 'active', failedLogins: 0, lockedUntil: null });
-    await this.audit.log('login.success', { userId: user.id, ip: meta.ip });
+    await this.audit.log('login.success', { userId: user.id, ip: meta.ip, meta: { method } });
     return this.buildSession(active ?? user, meta);
+  }
+
+  private assertNotLocked(user: UserRow, meta: ClientMeta): void {
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      void this.audit.log('login.locked', { userId: user.id, ip: meta.ip });
+      throw new HttpException({ code: 'ACCOUNT_LOCKED', message: 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.' }, HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  private async registerFailure(user: UserRow, meta: ClientMeta): Promise<void> {
+    const attempts = user.failedLogins + 1;
+    const shouldLock = attempts >= MAX_FAILED_LOGINS;
+    await this.users.update(user.id, {
+      failedLogins: shouldLock ? 0 : attempts,
+      lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
+    });
+    await this.audit.log('login.failed', { userId: user.id, ip: meta.ip, meta: { attempts } });
   }
 
   /**
@@ -167,22 +231,10 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
-    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-      await this.audit.log('login.locked', { userId: user.id, ip: meta.ip });
-      throw new HttpException(
-        { code: 'ACCOUNT_LOCKED', message: 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.' },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    this.assertNotLocked(user, meta);
 
     if (!(await this.crypto.verifyPassword(user.passwordHash, password))) {
-      const attempts = user.failedLogins + 1;
-      const shouldLock = attempts >= MAX_FAILED_LOGINS;
-      await this.users.update(user.id, {
-        failedLogins: shouldLock ? 0 : attempts,
-        lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
-      });
-      await this.audit.log('login.failed', { userId: user.id, ip: meta.ip, meta: { attempts } });
+      await this.registerFailure(user, meta);
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
     return user;

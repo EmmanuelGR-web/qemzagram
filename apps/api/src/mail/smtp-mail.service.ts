@@ -1,12 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 import { ENV, type AppEnv } from '../config/env';
-import { MailPort } from './mail.port';
+import { MailPort, type SecurityEvent } from './mail.port';
 import {
   accountExistsEmail,
   passwordChangedEmail,
   accountBannedEmail,
   appealResultEmail,
+  securityAlertEmail,
   passwordResetEmail,
   verificationEmail,
   type EmailContent,
@@ -53,6 +54,10 @@ export class SmtpMailService extends MailPort {
 
   sendAppealResult(to: string, displayName: string, accepted: boolean): Promise<void> {
     return this.deliver(to, appealResultEmail(displayName, accepted, `${this.env.WEB_ORIGIN}/login`));
+  }
+
+  sendSecurityAlert(to: string, displayName: string, event: SecurityEvent): Promise<void> {
+    return this.deliver(to, securityAlertEmail(displayName, event));
   }
 
   private async deliver(to: string, content: EmailContent, devLink?: string): Promise<void> {

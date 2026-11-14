@@ -33,7 +33,13 @@ export type AuditAction =
   | 'support.user_lookup'
   | 'support.password_reset'
   | 'support.role_granted'
-  | 'support.role_revoked';
+  | 'support.role_revoked'
+  | 'login.mfa_required'
+  | 'login.mfa_failed'
+  | 'mfa.totp_enabled'
+  | 'mfa.totp_disabled'
+  | 'mfa.backup_used'
+  | 'mfa.backup_regenerated';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

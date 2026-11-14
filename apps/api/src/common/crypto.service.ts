@@ -14,6 +14,7 @@ export class CryptoService {
   /** Claves derivadas (HKDF) de MESSAGE_ENC_KEY: una por uso, para que nunca se mezclen. */
   private readonly blobKey: Buffer;
   private readonly urlSigningKey: Buffer;
+  private readonly secretHashKey: Buffer;
   private dummyHash?: Promise<string>;
 
   constructor(@Inject(ENV) env: AppEnv) {
@@ -21,6 +22,7 @@ export class CryptoService {
     this.pepper = Buffer.from(env.PASSWORD_PEPPER, 'utf8');
     this.blobKey = this.deriveKey('qemzagram/media-blob/v1');
     this.urlSigningKey = this.deriveKey('qemzagram/media-url/v1');
+    this.secretHashKey = this.deriveKey('qemzagram/secret-hash/v1');
   }
 
   private deriveKey(label: string): Buffer {
@@ -101,6 +103,14 @@ export class CryptoService {
     decipher.setAAD(Buffer.from(aad, 'utf8'));
     decipher.setAuthTag(payload.subarray(13, 29));
     return Buffer.concat([decipher.update(payload.subarray(29)), decipher.final()]);
+  }
+
+  /**
+   * HMAC-SHA256 con clave del servidor, para secretos CORTOS (códigos de respaldo): con un SHA-256
+   * simple, alguien con una copia de la base podría probar todas las combinaciones; sin la clave, no.
+   */
+  hashSecret(value: string): string {
+    return createHmac('sha256', this.secretHashKey).update(value).digest('hex');
   }
 
   /** Firma HMAC-SHA256 para URLs de archivos (base64url). */

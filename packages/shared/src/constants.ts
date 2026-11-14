@@ -158,3 +158,14 @@ export const APPEAL_RETRY_DAYS = 30;
 export const SUPPORT_NOTE_MAX_LENGTH = 500;
 /** La evidencia de denuncias ya resueltas se borra pasado este plazo (minimización de datos). */
 export const REPORT_EVIDENCE_RETENTION_DAYS = 180;
+
+/* ---------- Fase 7A: segundo factor (2FA) ---------- */
+
+/** TOTP estándar (RFC 6238): 6 dígitos cada 30 segundos, compatible con Google Authenticator, Authy, etc. */
+export const TOTP_DIGITS = 6;
+export const TOTP_PERIOD_SECONDS = 30;
+/** Códigos de respaldo de un solo uso que se entregan al activar el 2FA. */
+export const MFA_BACKUP_CODES = 10;
+/** Minutos para completar el segundo paso del login. */
+export const MFA_LOGIN_MINUTES = 5;
+export const MFA_METHODS = ['totp', 'backup', 'passkey'] as const;

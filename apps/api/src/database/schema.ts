@@ -53,6 +53,15 @@ export const users = pgTable('users', {
   emailVerifiedAt: ts('email_verified_at'),
   failedLogins: integer('failed_logins').notNull().default(0),
   lockedUntil: ts('locked_until'),
+  /** Hay algún segundo factor activo (TOTP o llave de acceso). Lo mantiene MfaService. */
+  mfaEnabled: boolean('mfa_enabled').notNull().default(false),
+  /** Secreto TOTP activo, CIFRADO (AAD = "totp:<id>"). */
+  totpSecretEncrypted: text('totp_secret_encrypted'),
+  /** Secreto TOTP en configuración (todavía sin confirmar con un código), CIFRADO. */
+  totpPendingEncrypted: text('totp_pending_encrypted'),
+  totpEnabledAt: ts('totp_enabled_at'),
+  /** Último paso de 30 s usado: el mismo código no sirve dos veces (anti-repetición). */
+  totpLastStep: integer('totp_last_step'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -488,6 +497,21 @@ export const appeals = pgTable(
   ],
 );
 
+/** Códigos de respaldo del 2FA: solo su HMAC (con clave del servidor), de un solo uso. */
+export const mfaBackupCodes = pgTable(
+  'mfa_backup_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex('mfa_backup_codes_user_hash_idx').on(table.userId, table.codeHash)],
+);
+
 export const auditLog = pgTable(
   'audit_log',
   {
@@ -522,3 +546,4 @@ export type ReportRow = typeof reports.$inferSelect;
 export type ReportEvidenceRow = typeof reportEvidence.$inferSelect;
 export type NewReportEvidenceRow = typeof reportEvidence.$inferInsert;
 export type AppealRow = typeof appeals.$inferSelect;
+export type MfaBackupCodeRow = typeof mfaBackupCodes.$inferSelect;

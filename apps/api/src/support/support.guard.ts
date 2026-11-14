@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import type { AuthedRequest } from '../common/decorators';
 
 /**
@@ -11,6 +11,10 @@ export class SupportGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<AuthedRequest>();
     if (request.user?.role !== 'support') throw new NotFoundException({ code: 'NOT_FOUND', message: 'No encontrado' });
+    // Una cuenta de soporte ve denuncias y datos de cuentas: sin segundo factor no entra (Fase 7A).
+    if (!request.user.mfaEnabled) {
+      throw new ForbiddenException({ code: 'MFA_REQUIRED', message: 'Activá la verificación en dos pasos (Ajustes → Seguridad) para usar el panel de soporte' });
+    }
     return true;
   }
 }

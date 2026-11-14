@@ -29,7 +29,7 @@ export class JwtAuthGuard implements CanActivate {
     if (!user || user.status !== 'active') {
       throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Sesión inválida o vencida' });
     }
-    request.user = { id: user.id, tag: user.tag, role: user.role };
+    request.user = { id: user.id, tag: user.tag, role: user.role, mfaEnabled: user.mfaEnabled };
     return true;
   }
 }

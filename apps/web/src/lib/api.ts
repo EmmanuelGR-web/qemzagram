@@ -44,7 +44,7 @@ export async function api<T = void>(path: string, options: RequestOptions = {}):
     });
 
   let response = await send();
-  const isAuthRoute = path.startsWith('/auth/login') || path.startsWith('/auth/refresh');
+  const isAuthRoute = ['/auth/login', '/auth/refresh', '/auth/mfa/verify', '/auth/appeal'].some((route) => path.startsWith(route));
   if (response.status === 401 && !isAuthRoute && (await tryRefresh())) response = await send();
 
   if (response.status === 204) return undefined as T;

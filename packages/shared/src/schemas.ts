@@ -29,6 +29,7 @@ import {
   APPEAL_MESSAGE_MIN_LENGTH,
   APPEAL_STATUSES,
   SUPPORT_NOTE_MAX_LENGTH,
+  TOTP_DIGITS,
 } from './constants';
 import { getPasswordIssues, PASSWORD_ISSUE_MESSAGES } from './password';
 
@@ -289,3 +290,33 @@ export const appealSchema = z
   })
   .strict();
 export type AppealInput = z.infer<typeof appealSchema>;
+
+/* ---------- Fase 7A: 2FA ---------- */
+
+const totpCodeSchema = z
+  .string()
+  .trim()
+  .regex(new RegExp(`^\\d{${TOTP_DIGITS}}$`), `Ingresá los ${TOTP_DIGITS} dígitos de tu app`);
+/** Código de respaldo: 8 caracteres (con o sin guion), sin distinguir mayúsculas. */
+const backupCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .transform((value) => value.replace(/[\s-]/g, ''))
+  .pipe(z.string().regex(/^[A-Z2-9]{8}$/, 'Código de respaldo inválido'));
+
+const currentPasswordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
+
+/** Segundo paso del login. */
+export const mfaVerifySchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('totp'), code: totpCodeSchema }).strict(),
+  z.object({ method: z.literal('backup'), code: backupCodeSchema }).strict(),
+]);
+export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>;
+
+export const totpSetupSchema = z.object({ password: currentPasswordSchema }).strict();
+export const totpEnableSchema = z.object({ code: totpCodeSchema }).strict();
+/** Desactivar el 2FA o regenerar códigos: contraseña + un código vigente (TOTP o de respaldo). */
+export const mfaConfirmSchema = z
+  .object({ password: currentPasswordSchema, code: z.string().trim().min(6).max(12) })
+  .strict();

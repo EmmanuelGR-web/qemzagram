@@ -19,7 +19,7 @@ import { appeals, auditLog, reportEvidence, reports } from '../src/database/sche
 import { SupportCleanupService } from '../src/support/support-cleanup.service';
 import { runSupportCommand } from '../src/support/support-role.cli';
 import { binary } from './support/files';
-import { createTestApp, ORIGIN, signUp, type TestContext, type TestUser } from './support/test-app';
+import { createTestApp, enableMfa, ORIGIN, signUp, type TestContext, type TestUser } from './support/test-app';
 
 describe('Panel de soporte: denuncias, bajas, apelaciones y estadísticas', () => {
   let ctx: TestContext;
@@ -55,6 +55,9 @@ describe('Panel de soporte: denuncias, bajas, apelaciones y estadísticas', () =
     malo = await signUp(ctx, 'malo.sop', 'Ma#Soporte2026-ok');
     // El rol se da SOLO por consola (no hay ruta HTTP para eso).
     expect(await runSupportCommand(ctx.app.get(UsersRepository), ctx.app.get(AuditService), 'grant', '@soporte.equipo')).toContain('soporte');
+    // Sin segundo factor, una cuenta de soporte no puede usar el panel (Fase 7A).
+    expect((await soporte.agent.get('/support/stats').expect(403)).body.code).toBe('MFA_REQUIRED');
+    await enableMfa(ctx, soporte);
     await befriend(ana, malo);
     chatAnaMalo = ((await ana.agent.post('/chats/direct').send({ tag: malo.tag }).expect(200)).body as ConversationDto).id;
   });

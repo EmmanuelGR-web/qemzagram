@@ -14,3 +14,6 @@ export const LOCK_DURATION_MS = 15 * 60 * 1000;
 export const JWT_ISSUER = 'qemzagram';
 export const AUDIENCE_ACCESS = 'qz:access';
 export const AUDIENCE_WS = 'qz:ws';
+export const AUDIENCE_MFA = 'qz:mfa';
+/** Cookie con el ticket del segundo paso del login (HttpOnly, solo para /auth). */
+export const MFA_COOKIE = 'qz_mfa';

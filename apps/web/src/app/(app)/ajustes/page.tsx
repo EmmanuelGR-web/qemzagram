@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { BlockedUsersDialog } from '@/components/BlockedUsersDialog';
 import { MyReportsDialog } from '@/components/MyReportsDialog';
+import { SecuritySettings } from '@/components/SecuritySettings';
 import { Modal } from '@/components/Modal';
 import { AUDIENCE_LABELS, StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { disablePush, enablePush, getPushState, type PushState } from '@/lib/push';
@@ -221,6 +222,8 @@ export default function SettingsPage() {
         )}
         {error && <p className="alert alert-error">{error}</p>}
       </section>
+
+      <SecuritySettings />
 
       <section className="card">
         <h3>Cuenta</h3>

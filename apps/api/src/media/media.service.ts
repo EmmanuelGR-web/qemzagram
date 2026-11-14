@@ -85,8 +85,8 @@ export class MediaService {
    * Archivo de evidencia de una denuncia: SOLO para el rol de soporte (el rol se lee de la base
    * en cada petición). Para cualquier otra persona, "no encontrado".
    */
-  async getEvidenceForSupport(viewer: { role: 'user' | 'support' }, id: string, exp: number, sig: string): Promise<ServedFile> {
-    if (viewer.role !== 'support' || !this.urls.verify('r', id, exp, sig)) throw new NotFoundException(NOT_FOUND);
+  async getEvidenceForSupport(viewer: { role: 'user' | 'support'; mfaEnabled: boolean }, id: string, exp: number, sig: string): Promise<ServedFile> {
+    if (viewer.role !== 'support' || !viewer.mfaEnabled || !this.urls.verify('r', id, exp, sig)) throw new NotFoundException(NOT_FOUND);
     const row = await this.reports.findEvidence(id);
     if (!row?.storageKey || !row.mimeType) throw new NotFoundException(NOT_FOUND);
     const isDocument = row.kind === 'file';

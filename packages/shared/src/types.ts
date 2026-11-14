@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, REPORT_EVIDENCE_SOURCES, REPORT_STATUSES, ReportReason, APPEAL_STATUSES, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, REPORT_EVIDENCE_SOURCES, REPORT_STATUSES, ReportReason, APPEAL_STATUSES, MFA_METHODS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 import type { NearbyDistance, NearbyGreetingState } from './nearby';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
@@ -21,6 +21,8 @@ export interface SelfUser extends PublicUser {
   createdAt: string;
   /** "support" habilita el panel de soporte (que NUNCA da acceso a conversaciones). */
   role: UserRole;
+  /** Tiene activado un segundo factor (app autenticadora o llave de acceso). */
+  mfaEnabled: boolean;
 }
 
 export interface ContactDto {
@@ -396,4 +398,28 @@ export interface SupportStatsDto {
   };
   moderation: { reportsPending: number; reportsConfirmed: number; reportsDismissed: number; appealsPending: number; bansLast30d: number };
   generatedAt: string;
+}
+
+/* ---------- Fase 7A: 2FA ---------- */
+
+export type MfaMethod = (typeof MFA_METHODS)[number];
+
+/** Respuesta del login: la sesión, o el aviso de que falta el segundo paso (sin sesión todavía). */
+export type LoginResultDto = { mfaRequired: false; user: SelfUser } | { mfaRequired: true; methods: MfaMethod[] };
+
+export interface MfaStatusDto {
+  enabled: boolean;
+  totp: boolean;
+  backupCodesLeft: number;
+}
+
+/** Datos para cargar en la app autenticadora. Se muestran UNA vez, al configurar. */
+export interface TotpSetupDto {
+  secret: string;
+  otpauthUrl: string;
+}
+
+/** Códigos de respaldo en claro: se muestran UNA sola vez (en la base solo queda su hash). */
+export interface BackupCodesDto {
+  codes: string[];
 }

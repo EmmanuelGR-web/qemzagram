@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import {
   appealSchema,
   forgotPasswordSchema,
+  mfaVerifySchema,
   loginSchema,
   registerSchema,
   resetPasswordSchema,
@@ -12,12 +13,15 @@ import {
   type ResetPasswordInput,
   type SelfUser,
   type AppealInput,
+  type LoginResultDto,
+  type MfaVerifyInput,
 } from '@qemzagram/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { clientMeta, CurrentUser, Public, type AuthUser } from '../common/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { ENV, type AppEnv } from '../config/env';
-import { ACCESS_COOKIE, ACCESS_TTL_SECONDS, REFRESH_COOKIE, REFRESH_TTL_SECONDS } from './auth.constants';
+import { MFA_LOGIN_MINUTES } from '@qemzagram/shared';
+import { ACCESS_COOKIE, ACCESS_TTL_SECONDS, MFA_COOKIE, REFRESH_COOKIE, REFRESH_TTL_SECONDS } from './auth.constants';
 import { AuthService, type AuthResult } from './auth.service';
 import { TokensService } from './tokens.service';
 
@@ -66,10 +70,31 @@ export class AuthController {
     @Body(new ZodPipe(loginSchema)) body: LoginInput,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<{ user: SelfUser }> {
-    const result = await this.auth.login(body, clientMeta(request));
+  ): Promise<LoginResultDto> {
+    const outcome = await this.auth.login(body, clientMeta(request));
+    if (outcome.kind === 'mfa') {
+      // El ticket viaja en una cookie HttpOnly (nunca en el cuerpo ni en el almacenamiento del navegador).
+      response.cookie(MFA_COOKIE, outcome.ticket, { ...this.cookieBase(), path: '/auth', maxAge: MFA_LOGIN_MINUTES * 60 * 1000 });
+      return { mfaRequired: true, methods: outcome.methods };
+    }
+    this.setCookies(response, outcome.session);
+    return { mfaRequired: false, user: outcome.session.user };
+  }
+
+  /** Segundo paso del login: código de la app autenticadora o de respaldo. */
+  @Public()
+  @Post('mfa/verify')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async verifyMfa(
+    @Body(new ZodPipe(mfaVerifySchema)) body: MfaVerifyInput,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<LoginResultDto> {
+    const result = await this.auth.verifyMfa(this.readCookie(request, MFA_COOKIE), body, clientMeta(request));
+    response.clearCookie(MFA_COOKIE, { ...this.cookieBase(), path: '/auth' });
     this.setCookies(response, result);
-    return { user: result.user };
+    return { mfaRequired: false, user: result.user };
   }
 
   @Public()

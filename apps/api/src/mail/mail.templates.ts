@@ -1,3 +1,5 @@
+import type { SecurityEvent } from './mail.port';
+
 const RED = '#D91E36';
 const DARK = '#1A0F12';
 
@@ -100,4 +102,23 @@ export function appealResultEmail(displayName: string, accepted: boolean, loginU
         text: `Hola ${displayName}. Revisamos tu apelación y la baja de tu cuenta se mantiene.`,
         html: layout('Revisamos tu apelación', `<p>Hola <b>${name}</b>. Revisamos tu apelación con atención y la baja de tu cuenta se mantiene.</p>`),
       };
+}
+
+const SECURITY_EVENT_TEXT: Record<SecurityEvent, string> = {
+  mfa_enabled: 'Activaste la verificación en dos pasos con una app autenticadora.',
+  mfa_disabled: 'Desactivaste la verificación en dos pasos.',
+  backup_codes_regenerated: 'Generaste nuevos códigos de respaldo. Los anteriores ya no sirven.',
+  backup_code_used: 'Iniciaste sesión con un código de respaldo.',
+  passkey_added: 'Agregaste una llave de acceso a tu cuenta.',
+  passkey_removed: 'Quitaste una llave de acceso de tu cuenta.',
+};
+
+export function securityAlertEmail(displayName: string, event: SecurityEvent): EmailContent {
+  const name = escapeHtml(displayName);
+  const text = SECURITY_EVENT_TEXT[event];
+  return {
+    subject: 'Cambio de seguridad en tu cuenta de Qemzagram',
+    text: `Hola ${displayName}. ${text} Si no fuiste vos, cambiá tu contraseña de inmediato y escribí a soporte.`,
+    html: layout('Cambio de seguridad', `<p>Hola <b>${name}</b>. ${escapeHtml(text)}</p><p>Si no fuiste vos, cambiá tu contraseña de inmediato y contactá a soporte.</p>`),
+  };
 }
