@@ -72,7 +72,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - **Token de LiveKit:** lo emite la API, vale **2 minutos** para entrar, sirve para **una sola sala** (la llamada) y con permisos mínimos: publicar micrófono (y cámara solo en videollamadas), sin datos, sin metadatos, sin compartir pantalla, sin crear ni administrar salas. La identidad es el id de usuario que pone el servidor.
 - **Webhook de LiveKit:** ruta pública pero **firmada**: se verifica el JWT con nuestro secreto y el hash SHA-256 del cuerpo; solo se aceptan salas que son llamadas nuestras e identidades que estaban adentro.
 - **Credenciales:** en desarrollo LiveKit corre en modo `--dev` (claves públicas `devkey/secret`) y **solo escucha en tu PC**. En producción la API **no arranca** con esas claves ni sin `wss://`.
-- **Notificaciones push:** protocolo Web Push estándar (VAPID). El contenido va **cifrado** de punta a punta entre la API y el navegador y es mínimo: quién llama y el tipo de llamada, **nunca mensajes**. Las suscripciones se guardan **cifradas** (permiten mandarle avisos a esa persona). Para evitar **SSRF**, solo se aceptan direcciones `https` de los servicios oficiales (Google, Mozilla, Apple, Microsoft). Se borran al cerrar sesión, al dar de baja la cuenta y cuando el navegador las cancela.
+- **Notificaciones push:** protocolo Web Push estándar (VAPID). El contenido va **cifrado** de punta a punta entre la API y el navegador y es mínimo: quién llama y el tipo de llamada, o (desde la Fase 6) quién te escribió, **nunca el contenido de los mensajes**. Las suscripciones se guardan **cifradas** (permiten mandarle avisos a esa persona). Para evitar **SSRF**, solo se aceptan direcciones `https` de los servicios oficiales (Google, Mozilla, Apple, Microsoft). Se borran al cerrar sesión, al dar de baja la cuenta y cuando el navegador las cancela.
 
 **Límites honestos de la Fase 4:**
 - Las llamadas **no son E2EE**: el servidor de medios (que controlamos) podría técnicamente acceder al audio/video mientras pasa. LiveKit admite E2EE con claves compartidas; queda para la Fase 7.
@@ -103,10 +103,38 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - Que alguien desaparezca de tu agenda o de tus búsquedas puede hacerte sospechar un bloqueo: ninguna app puede ocultarlo del todo.
 - No hay verificación de edad: definir una edad mínima (ver §5) es **obligatorio** antes de abrir esta función al público.
 
+## 2.5 Silenciar, denuncias y panel de soporte (Fase 6)
+
+**Avisos de mensajes y silenciar:**
+- El aviso push de un mensaje nuevo **nunca incluye el texto** ni el archivo: solo quién escribió (o el nombre del grupo) y qué chat abrir. Con la app abierta y a la vista, el navegador no lo muestra.
+- Silenciar es por persona y por chat (8 h, 1 semana o siempre) y vence solo. Las llamadas siempre suenan.
+
+**Denuncias y evidencia:**
+- Validación estricta (lista cerrada de motivos y campos). Quien denuncia **nunca se revela** a la persona denunciada, y quien denuncia solo ve si la denuncia "ya fue revisada" (no la decisión, para que no sirva como herramienta de presión).
+- La evidencia la **elige quien denuncia** (hasta 10 mensajes o estados). La API solo acepta algo que esa persona **puede ver** (es miembro del chat, o el estado está vigente y visible para ella) y que **escribió la persona denunciada**. Si no, la denuncia entera se rechaza y no queda nada guardado.
+- La evidencia es una **copia cifrada** (texto y archivo, con AAD propia `evidence:<id>`), no una referencia al chat: soporte **no tiene ningún camino** hacia la conversación original, y borrar el mensaje o que venza el estado no destruye la prueba.
+- **Minimización:** al descartar una denuncia su evidencia se borra enseguida; la de denuncias resueltas se borra a los **180 días**.
+
+**Panel de soporte (regla de seguridad 10):**
+- El rol `support` se lee **de la base en cada petición**. A quien no es de soporte, todo `/support/*` le responde **404** (ni siquiera se revela que existe). Los archivos de evidencia (`/media/r/...`) exigen firma vigente **y** rol de soporte: ni quien denunció ni la persona denunciada pueden abrirlos.
+- **No existe ninguna ruta que devuelva mensajes o conversaciones a soporte.** Las estadísticas son **solo conteos** (sin tags, ids ni correos). La ficha de una cuenta muestra el correo **enmascarado** (`j***@gmail.com`).
+- Nadie de soporte resuelve denuncias o apelaciones **en las que es parte**. Resolver es atómico (dos personas a la vez no la resuelven dos veces).
+- **Bajas:** 3 denuncias **confirmadas por soporte** de personas **distintas** (una persona que denuncia muchas veces cuenta una sola). La baja revoca sesiones, corta el tiempo real, la saca de "Cercanos", borra sus suscripciones push y le avisa por correo. El correo queda ocupado (no se puede registrar de nuevo).
+- **Apelaciones:** ruta pública pero con **las mismas credenciales y el mismo bloqueo por intentos que el login**; mensaje cifrado; una pendiente a la vez y 30 días de espera tras un rechazo.
+- **Reseteo asistido:** soporte solo dispara el mismo enlace de "Olvidé mi contraseña" **hacia el correo registrado**.
+- **Roles:** se dan y quitan **solo por consola** (`npm run support:grant|revoke -- @tag`), con acceso al servidor. Ningún endpoint ni campo de perfil acepta `role`.
+- **Auditoría:** denuncia creada, evidencia vista, confirmada/descartada, baja, reactivación, apelación creada/aceptada/rechazada, ficha consultada, reseteo asistido y cambios de rol.
+
+**Límites honestos de la Fase 6:**
+- Quien denuncia elige la evidencia: puede elegir mensajes fuera de contexto. Soporte decide con lo que tiene; por eso el umbral es de **3 personas distintas** y existe la apelación.
+- Varias cuentas coordinadas podrían denunciar a alguien, pero cada denuncia la **confirma una persona de soporte** mirando la evidencia: no hay bajas automáticas.
+- No hay todavía roles de soporte con distintos permisos (por ejemplo "moderación" vs. "administración"), ni doble aprobación para las bajas.
+- La verificación de identidad para el reseteo asistido es un **procedimiento humano** que tenés que definir por escrito (qué datos se piden).
+
 ## 3. Cómo funciona la recuperación de contraseña
 
 - **Por correo:** `¿Olvidé mi contraseña?` → enlace de un solo uso, válido 1 hora → nueva contraseña (con la misma política) → todas las sesiones se cierran.
-- **Por soporte técnico:** quien administra la app **no puede ver ni cambiar contraseñas** (solo existen hashes). El soporte atiende por correo (`soporte@qemzagram.com`, configurable en `AppHeader.tsx`) y, tras verificar la identidad por un procedimiento definido por vos, puede **iniciar el mismo proceso de restablecimiento** hacia el correo registrado. El panel de soporte con esa acción se construye en la Fase 6.
+- **Por soporte técnico:** quien administra la app **no puede ver ni cambiar contraseñas** (solo existen hashes). El soporte atiende por correo (`soporte@qemzagram.com`, configurable en `AppHeader.tsx`) y, tras verificar la identidad por un procedimiento definido por vos, puede **iniciar el mismo proceso de restablecimiento** hacia el correo registrado desde **Panel de soporte → Cuentas** (Fase 6). Soporte nunca ve ni elige la contraseña.
 
 ## 4. Lo que NO está implementado todavía (importante)
 
@@ -124,7 +152,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | Revisión de riesgos y legal de "Personas cercanas" | Diseño con celdas de 1 km, opt-in de 1 h y anti-rastreo (§2.4) | **Antes de abrirla al público** |
 | Edad mínima / verificación de edad | No implementada | Antes de lanzar (especialmente "Personas cercanas") |
 | Prueba de penetración externa | No realizada | **Obligatoria antes de lanzar** |
-| Moderación, denuncias y bajas por incumplimiento | Esquema preparado (`status: banned`, rol `support`) | Fase 6 |
+| Moderación con niveles de permiso / doble aprobación de bajas | Un solo rol `support` (ver §2.5) | Si el equipo crece |
 | Copias de seguridad y recuperación ante desastres | Depende del hosting elegido | Despliegue |
 | Gestor de secretos, rotación de claves | Solo variables de entorno | Despliegue |
 

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Avatar } from '@/components/Avatar';
 import { LockIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
+import { ReportDialog } from '@/components/ReportDialog';
 import { api, errorMessage } from '@/lib/api';
 import { BLOCK_EXPLANATION, blockUser } from '@/lib/blocks';
 import { hideMe, LocationError, showMe } from '@/lib/nearby';
@@ -37,6 +38,7 @@ export function NearbyScreen() {
   const [consentOpen, setConsentOpen] = useState(false);
   const [consent, setConsent] = useState(false);
   const [blocking, setBlocking] = useState<NearbyUserDto | null>(null);
+  const [reporting, setReporting] = useState<NearbyUserDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -190,6 +192,9 @@ export function NearbyScreen() {
                   <button className="btn btn-ghost btn-sm" onClick={() => setBlocking(greeting.user)} disabled={busy}>
                     Bloquear
                   </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setReporting(greeting.user)} disabled={busy}>
+                    Denunciar
+                  </button>
                 </div>
               </li>
             ))}
@@ -237,6 +242,9 @@ export function NearbyScreen() {
                       )}
                       <button className="btn btn-ghost btn-sm" onClick={() => setBlocking(person.user)} disabled={busy}>
                         Bloquear
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setReporting(person.user)} disabled={busy}>
+                        Denunciar
                       </button>
                     </div>
                   </li>
@@ -291,6 +299,16 @@ export function NearbyScreen() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {reporting && (
+        <ReportDialog
+          user={reporting}
+          onClose={() => {
+            setReporting(null);
+            void reload().catch(() => undefined);
+          }}
+        />
       )}
 
       {blocking && (

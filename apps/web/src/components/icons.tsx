@@ -221,3 +221,14 @@ export const BellOffIcon = ({ size }: { size?: number }) => (
     <path d="m2 2 20 20" />
   </Icon>
 );
+export const FlagIcon = () => (
+  <Icon>
+    <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
+  </Icon>
+);
+export const ShieldIcon = () => (
+  <Icon>
+    <path d="M12 3 4.500 6v5.500c0 4.600 3.200 8.400 7.500 9.500 4.300-1.100 7.500-4.900 7.500-9.500V6L12 3Z" />
+    <path d="m9 12 2 2 4-4" />
+  </Icon>
+);

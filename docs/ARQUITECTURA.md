@@ -87,6 +87,21 @@ aceptar   ─► POST /nearby/greetings/:id/accept ─► transacción: saludo a
 reloj     ─► NearbyCleanupService (cada 5 min): borra las zonas vencidas
 ```
 
+## Silenciar, denuncias y soporte (Fase 6)
+
+```
+mensaje    ─► ChatsService.publish ─► tiempo real a todos + PushService.notify a quienes NO silenciaron (sin texto)
+silenciar  ─► PUT /chats/:id/mute { duration } ─► conversation_members.muted_until (solo para quien lo pide)
+denunciar  ─► POST /reports ─► ReportsService: ¿la evidencia es visible para quien denuncia y la escribió el denunciado?
+              ─► copia cifrada (texto + archivo) ─► reports + report_evidence en UNA transacción
+soporte    ─► /support/* (SupportGuard: rol leído de la base) ─► SupportService ─► Reports/Appeals/SupportStats repositories
+              confirmar ─► ¿3 denunciantes distintos? ─► baja: sesiones + tiempo real + cercanos + push + correo
+evidencia  ─► GET /media/r/:id (firma + rol support) ─► MediaService.getEvidenceForSupport
+apelar     ─► POST /auth/appeal (mismas credenciales que el login) ─► appeals ─► soporte acepta/rechaza ─► correo
+roles      ─► npm run support:grant -- @tag ─► support-role.cli.ts (sin HTTP) ─► UsersRepository.setRole
+reloj      ─► SupportCleanupService (cada 6 h): borra la evidencia de denuncias resueltas hace más de 180 días
+```
+
 ## Cómo se aplica SOLID
 
 - **S — Responsabilidad única:** cada clase hace una cosa (`CryptoService` cifra, `AuditService` audita, `StorageService` procesa imágenes, `TokensService` firma tokens).
@@ -110,7 +125,7 @@ reloj     ─► NearbyCleanupService (cada 5 min): borra las zonas vencidas
 | `email_tokens` | Enlaces de verificación y de recuperación (solo hash, un uso, vencen) |
 | `sessions` | Refresh tokens rotativos (solo hash), con detección de reutilización |
 | `contacts` | Agenda: quién agregó a quién |
-| `conversations` / `conversation_members` | Chats 1 a 1 y grupos (máx. 10), con rol admin/miembro |
+| `conversations` / `conversation_members` | Chats 1 a 1 y grupos (máx. 10), con rol admin/miembro y hasta cuándo cada miembro silenció el chat (`muted_until`) |
 | `messages` | Mensajes con el cuerpo **cifrado** (texto o epígrafe) y, si corresponde, el código de un sticker del pack general |
 | `attachments` | Adjuntos de mensajes (imagen, documento, voz, video, sticker enviado): tipo MIME del servidor, tamaño, dimensiones/duración, nombre original **cifrado** y clave del archivo cifrado |
 | `stickers` | "Mis stickers" de cada persona (archivo cifrado, visible solo para su dueño) |
@@ -120,6 +135,9 @@ reloj     ─► NearbyCleanupService (cada 5 min): borra las zonas vencidas
 | `user_blocks` | Bloqueos (quién bloqueó a quién); se aplican en las dos direcciones |
 | `nearby_presence` | "Personas cercanas": **solo la celda** de ~1 km, hasta cuándo es visible y contadores anti-rastreo. Celda en null = invisible |
 | `nearby_greetings` | Saludos entre personas cercanas (pendiente / aceptado / rechazado), uno por pareja y dirección |
+| `reports` | Denuncias: quién, a quién, motivo, descripción **cifrada**, estado (pendiente/confirmada/descartada) y quién la resolvió. Una pendiente por pareja (índice único parcial) |
+| `report_evidence` | **Copia cifrada** de los mensajes o estados que eligió quien denunció (texto, sticker y archivo con clave propia) |
+| `appeals` | Apelaciones de cuentas dadas de baja: mensaje **cifrado**, estado y quién la resolvió. Una pendiente por cuenta |
 | `push_subscriptions` | Dispositivos con notificaciones: dirección y claves **cifradas**, hash de la dirección para no duplicar |
 | `status_views` | Quién vio cada estado (solo lo consulta el dueño; se borra con el estado) |
 | `audit_log` | Eventos de seguridad (incluye archivos bloqueados por el antivirus) |

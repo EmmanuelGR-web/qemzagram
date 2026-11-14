@@ -35,11 +35,14 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ **Saludos**: solo a quien aparece en tu lista; al aceptar quedan en la agenda del otro (recién ahí se ve el tag); el rechazo no se revela; vencen a las 24 h; máximo 20 por día.
 - ⚠️ Antes de abrirla al público: revisión específica de riesgos, de privacidad y **legal** (ver `SEGURIDAD.md` §2.4 y §4.1).
 
-## Fase 6 — Soporte, denuncias y estadísticas
-- Rol **soporte** con panel **sin acceso a conversaciones**: estadísticas agregadas de uso, gestión de denuncias y bajas.
-- Sistema de **denuncias** (spam, hostigamiento, etc.): al acumular denuncias válidas, baja total del usuario y de su correo, con registro y posibilidad de apelación. La persona que denuncia puede adjuntar el contenido ofensivo como evidencia.
-- Restablecimiento de contraseña asistido por soporte (verificación de identidad + envío del enlace al correo registrado).
-- Bloquear / silenciar usuarios.
+## ✅ Fase 6 — Soporte, denuncias y estadísticas
+- ✅ **Silenciar chats** (8 horas, 1 semana o siempre) y **avisos push de mensajes nuevos** que nunca llevan el texto (solo quién escribió o el nombre del grupo). Las llamadas siempre suenan. El bloqueo de usuarios ya estaba desde la Fase 5.
+- ✅ **Denuncias** desde un perfil, un chat (por miembro), un estado o "Cercanos": motivo de una lista cerrada, detalle opcional y **hasta 10 mensajes o estados elegidos por quien denuncia**, que se **copian cifrados** como evidencia. Opción de bloquear en el mismo paso. Una denuncia pendiente por persona y 10 por día.
+- ✅ **Panel de soporte** (`/soporte`) **sin acceso a conversaciones**: cola de denuncias (pendientes, confirmadas, descartadas) con la evidencia elegida, apelaciones, ficha de cuenta (correo enmascarado) y **estadísticas agregadas**.
+- ✅ **Bajas:** con **3 denuncias confirmadas por soporte de personas distintas** la cuenta se da de baja (sesiones y conexiones cortadas, correo ocupado para siempre) y recibe un correo con cómo apelar.
+- ✅ **Apelaciones** desde `/apelar` con tag/correo + contraseña. Aceptar reactiva la cuenta y anula sus denuncias confirmadas; rechazar mantiene la baja (se puede volver a apelar a los 30 días).
+- ✅ **Reseteo de contraseña asistido:** soporte verifica la identidad por otro canal y manda el enlace **al correo registrado** (nunca ve ni elige la contraseña).
+- ✅ **Rol de soporte solo por consola** (`npm run support:grant -- @tag`): ninguna ruta web puede dar roles.
 
 ## Fase 7 — Cifrado de extremo a extremo y endurecimiento
 - **E2EE real** (Signal / MLS): ni el servidor ni el soporte pueden leer los mensajes. Implica manejo de claves por dispositivo, grupos y copias de seguridad cifradas.

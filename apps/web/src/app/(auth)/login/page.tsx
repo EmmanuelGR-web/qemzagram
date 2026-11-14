@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [banned, setBanned] = useState(false);
   const [resendEmail, setResendEmail] = useState('');
 
   async function submit(event: FormEvent) {
@@ -30,6 +31,7 @@ export default function LoginPage() {
       router.replace('/chats');
     } catch (caught) {
       setNeedsVerification(caught instanceof ApiError && caught.code === 'EMAIL_NOT_VERIFIED');
+      setBanned(caught instanceof ApiError && caught.code === 'ACCOUNT_BANNED');
       if (identifier.includes('@')) setResendEmail(identifier);
       setError(errorMessage(caught));
     } finally {
@@ -62,6 +64,11 @@ export default function LoginPage() {
           </p>
         )}
         {notice && <p className="alert alert-ok">{notice}</p>}
+        {banned && (
+          <p className="muted small">
+            ¿Creés que es un error? <Link href="/apelar">Apelá la decisión</Link> y soporte la va a revisar.
+          </p>
+        )}
         {needsVerification && (
           <div className="field">
             <label htmlFor="resend">Reenviar verificación a</label>

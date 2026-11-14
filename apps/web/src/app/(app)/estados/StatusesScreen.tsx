@@ -7,6 +7,7 @@ import { CameraCapture, cameraSupported } from '@/components/chat/CameraCapture'
 import { CameraIcon, ImageIcon, LockIcon, PlusIcon, VideoIcon } from '@/components/icons';
 import { MediaStatusEditor } from '@/components/status/MediaStatusEditor';
 import { OwnStatusFooter } from '@/components/status/OwnStatusFooter';
+import { ReportStatusFooter } from '@/components/status/ReportStatusFooter';
 import { StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { StatusViewer } from '@/components/status/StatusViewer';
 import { TextStatusEditor } from '@/components/status/TextStatusEditor';
@@ -211,6 +212,17 @@ export function StatusesScreen() {
           onPreviousUser={position > 0 ? () => openFeed(position - 1) : undefined}
           onShown={markSeen}
           onMediaError={() => void load()}
+          footer={(status, pause) => (
+            <ReportStatusFooter
+              user={current.user}
+              status={status}
+              pause={pause}
+              onBlocked={() => {
+                closeViewer();
+                void load();
+              }}
+            />
+          )}
         />
       )}
     </div>

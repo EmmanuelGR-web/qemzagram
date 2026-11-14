@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { ProfileHeader } from '@/components/ProfileHeader';
+import { ReportDialog } from '@/components/ReportDialog';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { BLOCK_EXPLANATION, blockUser, listBlocked, unblockUser } from '@/lib/blocks';
@@ -18,6 +19,7 @@ export default function PublicProfilePage() {
   const [inAgenda, setInAgenda] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -119,6 +121,9 @@ export default function PublicProfilePage() {
                   Bloquear
                 </button>
               )}
+              <button className="btn btn-ghost" onClick={() => setReporting(true)} disabled={busy}>
+                Denunciar
+              </button>
             </>
           )
         }
@@ -126,6 +131,14 @@ export default function PublicProfilePage() {
       {profile.isPrivate && !isMe && !profile.bio && <p className="muted small">Esta cuenta es privada: solo muestra más información a quienes agregó a su agenda.</p>}
       {blocked && !isMe && <p className="muted small">Bloqueaste a esta persona.</p>}
       {error && <p className="alert alert-error">{error}</p>}
+      {reporting && (
+        <ReportDialog
+          user={profile}
+          alreadyBlocked={blocked}
+          onClose={() => setReporting(false)}
+          onDone={(result) => result.blocked && setBlocked(true)}
+        />
+      )}
       {confirmBlock && (
         <Modal title={`¿Bloquear a ${profile.displayName}?`} onClose={() => setConfirmBlock(false)}>
           <p>{BLOCK_EXPLANATION}</p>

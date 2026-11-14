@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Avatar } from './Avatar';
-import { ChatIcon, CloseIcon, ContactsIcon, HelpIcon, LogoutIcon, MenuIcon, NearbyIcon, SettingsIcon, StatusIcon, UserIcon } from './icons';
+import { ChatIcon, CloseIcon, ContactsIcon, HelpIcon, LogoutIcon, MenuIcon, NearbyIcon, SettingsIcon, ShieldIcon, StatusIcon, UserIcon } from './icons';
 import { LogoMark } from './Logo';
 
 const TABS = [
@@ -85,6 +85,11 @@ export function AppHeader() {
               <Link href="/ajustes" className="menu-item" role="menuitem">
                 <SettingsIcon /> Ajustes
               </Link>
+              {user.role === 'support' && (
+                <Link href="/soporte" className="menu-item" role="menuitem">
+                  <ShieldIcon /> Panel de soporte
+                </Link>
+              )}
               <a className="menu-item" role="menuitem" href={`mailto:${SUPPORT_EMAIL}?subject=Soporte%20Qemzagram`}>
                 <HelpIcon /> Ayuda y soporte
               </a>

@@ -1,6 +1,6 @@
 'use client';
 
-import { GROUP_MAX_MEMBERS, type ChatMuteDuration, type ConversationDto, type MessageDto } from '@qemzagram/shared';
+import { GROUP_MAX_MEMBERS, type ChatMuteDuration, type ConversationDto, type MessageDto, type PublicUser } from '@qemzagram/shared';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -9,12 +9,15 @@ import { Composer } from '@/components/chat/Composer';
 import { MessageContent } from '@/components/chat/MessageContent';
 import { BackIcon, BellIcon, BellOffIcon, GroupIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
+import { ReportDialog } from '@/components/ReportDialog';
 import { api, errorMessage, refreshSession } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { unblockUser } from '@/lib/blocks';
 import { useCalls } from '@/lib/call-context';
 import { describeConversation, formatTime, mutedLabel, useChats } from '@/lib/chats-context';
+import { messagePreview } from '@/lib/messages';
 import { useRealtimeEvent } from '@/lib/realtime-context';
+import type { EvidenceCandidate } from '@/lib/reports';
 
 const MUTE_OPTIONS: { value: Exclude<ChatMuteDuration, 'off'>; label: string }[] = [
   { value: '8h', label: 'Silenciar 8 horas' },
@@ -36,6 +39,7 @@ export default function ConversationPage() {
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showMute, setShowMute] = useState(false);
+  const [reporting, setReporting] = useState<PublicUser | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMediaRefresh = useRef(0);
 
@@ -116,6 +120,14 @@ export default function ConversationPage() {
       setError(errorMessage(caught));
     }
   }
+
+  /** Los últimos 30 mensajes de esa persona en este chat: quien denuncia elige cuáles adjuntar. */
+  const evidenceFrom = (authorId: string): EvidenceCandidate[] =>
+    messages
+      .filter((message) => message.senderId === authorId && !message.call)
+      .slice(-30)
+      .reverse()
+      .map((message) => ({ type: 'message', id: message.id, label: messagePreview(message) || 'Mensaje', createdAt: message.createdAt }));
 
   const info = describeConversation(conversation, user.id);
   const isGroup = conversation.type === 'group';
@@ -231,6 +243,27 @@ export default function ConversationPage() {
             remove(conversation.id);
             router.replace('/chats');
           }}
+          onReport={(member) => {
+            setShowInfo(false);
+            setReporting(member);
+          }}
+        />
+      )}
+      {reporting && (
+        <ReportDialog
+          user={reporting}
+          candidates={evidenceFrom(reporting.id)}
+          alreadyBlocked={!isGroup && conversation.blockedByMe}
+          onClose={() => setReporting(null)}
+          onDone={(result) => {
+            if (!result.blocked) return;
+            void api<ConversationDto>(`/chats/${conversation.id}`)
+              .then((fresh) => {
+                setConversation(fresh);
+                upsert(fresh);
+              })
+              .catch(() => undefined);
+          }}
         />
       )}
     </div>
@@ -243,8 +276,9 @@ function ConversationInfo(props: {
   onClose: () => void;
   onChanged: (conversation: ConversationDto) => void;
   onLeft: () => void;
+  onReport: (user: PublicUser) => void;
 }) {
-  const { conversation, myId, onClose, onChanged, onLeft } = props;
+  const { conversation, myId, onClose, onChanged, onLeft, onReport } = props;
   const [tag, setTag] = useState('');
   const [error, setError] = useState<string | null>(null);
   const isGroup = conversation.type === 'group';
@@ -288,6 +322,11 @@ function ConversationInfo(props: {
               </span>
               {member.role === 'admin' && <span className="badge">Admin</span>}
             </Link>
+            {member.user.id !== myId && (
+              <button className="btn btn-ghost btn-sm report-member" onClick={() => onReport(member.user)}>
+                Denunciar
+              </button>
+            )}
           </li>
         ))}
       </ul>

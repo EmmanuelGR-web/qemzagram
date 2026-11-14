@@ -4,6 +4,7 @@ import type { SelfUser, StatusPrivacyDto } from '@qemzagram/shared';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { BlockedUsersDialog } from '@/components/BlockedUsersDialog';
+import { MyReportsDialog } from '@/components/MyReportsDialog';
 import { Modal } from '@/components/Modal';
 import { AUDIENCE_LABELS, StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { disablePush, enablePush, getPushState, type PushState } from '@/lib/push';
@@ -70,6 +71,7 @@ export default function SettingsPage() {
   const [statusPrivacy, setStatusPrivacy] = useState<StatusPrivacyDto | null>(null);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [pushState, setPushState] = useState<PushState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
 
@@ -197,7 +199,17 @@ export default function SettingsPage() {
             Ver
           </button>
         </div>
+        <div className="setting">
+          <div>
+            <strong>Mis denuncias</strong>
+            <small>Las denuncias que hiciste y si soporte ya las revisó.</small>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setReportsOpen(true)}>
+            Ver
+          </button>
+        </div>
         {blockedOpen && <BlockedUsersDialog onClose={() => setBlockedOpen(false)} />}
+        {reportsOpen && <MyReportsDialog onClose={() => setReportsOpen(false)} />}
         {privacyOpen && (
           <StatusPrivacyDialog
             onClose={() => setPrivacyOpen(false)}
