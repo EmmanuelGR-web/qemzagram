@@ -587,3 +587,14 @@ html[data-theme='dark'] .call-log[data-missed='true'] .call-log-icon { backgroun
 /* ---------- Fase 5: bloqueo ---------- */
 .blocked-banner { border-top: 1px solid var(--red-100); border-bottom: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+
+/* ---------- Fase 5: personas cercanas ---------- */
+.nearby-visibility { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; border-left: 4px solid var(--line); }
+.nearby-visibility[data-visible='true'] { border-left-color: var(--red-500); }
+.nearby-visibility > div:first-child { display: flex; flex-direction: column; flex: 1 1 240px; gap: 0.2rem; }
+.nearby-visibility small { color: var(--muted); }
+.nearby-consent { display: grid; gap: 0.6rem; padding-left: 1.1rem; margin: 0 0 1rem; }
+.nearby-consent svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--red-600); }
+
+.checkbox { display: flex; align-items: flex-start; gap: 0.6rem; font-weight: 600; cursor: pointer; }
+.checkbox input { width: 20px; height: 20px; margin-top: 0.1rem; accent-color: var(--red-600); flex: none; }

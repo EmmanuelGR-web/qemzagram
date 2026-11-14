@@ -73,6 +73,20 @@ LiveKit  ─► POST /calls/livekit-webhook (firmado) ─► CallsService.handle
 reloj    ─► CallsTimeoutService (cada 5 s): "perdida" a los 45 s, corte a las 4 h
 ```
 
+## Bloqueos y personas cercanas (Fase 5)
+
+```
+bloquear  ─► BlocksController POST /blocks ─► BlocksService ─► BlocksRepository (user_blocks)
+             las reglas se aplican en: ContactsService, UsersService (perfil), ChatsService (requireCanSend),
+             CallsService (start/join) y DENTRO del SQL de estados y cercanos (noBlockBetween)
+visible   ─► el navegador: posición ─► toNearbyCell (shared) ─► PUT /nearby/me { cell, consent: true }
+             ─► NearbyService (límites de cambios) ─► NearbyRepository (nearby_presence: solo la celda)
+buscar    ─► GET /nearby ─► candidatos por filas de la grilla (SQL) ─► distancia entre celdas ─► rangos
+saludar   ─► POST /nearby/greetings ─► GreetingsService (¿está cerca AHORA?) ─► "nearby:greeting"
+aceptar   ─► POST /nearby/greetings/:id/accept ─► transacción: saludo aceptado + agenda mutua ─► "nearby:connected"
+reloj     ─► NearbyCleanupService (cada 5 min): borra las zonas vencidas
+```
+
 ## Cómo se aplica SOLID
 
 - **S — Responsabilidad única:** cada clase hace una cosa (`CryptoService` cifra, `AuditService` audita, `StorageService` procesa imágenes, `TokensService` firma tokens).
@@ -103,6 +117,9 @@ reloj    ─► CallsTimeoutService (cada 5 s): "perdida" a los 45 s, corte a la
 | `statuses` | Estados de 24 h: tipo (texto/foto/video), texto **cifrado**, fondo, archivo cifrado y `expires_at` |
 | `status_audience_members` | Listas de privacidad de los estados ("excepto" y "solo con"); la opción elegida vive en `users.status_audience` |
 | `calls` / `call_participants` | Llamadas: tipo, estado, quién llamó, cuándo se atendió/terminó y por qué; estado de cada participante. Una sola llamada abierta por chat (índice único parcial) |
+| `user_blocks` | Bloqueos (quién bloqueó a quién); se aplican en las dos direcciones |
+| `nearby_presence` | "Personas cercanas": **solo la celda** de ~1 km, hasta cuándo es visible y contadores anti-rastreo. Celda en null = invisible |
+| `nearby_greetings` | Saludos entre personas cercanas (pendiente / aceptado / rechazado), uno por pareja y dirección |
 | `push_subscriptions` | Dispositivos con notificaciones: dirección y claves **cifradas**, hash de la dirección para no duplicar |
 | `status_views` | Quién vio cada estado (solo lo consulta el dueño; se borra con el estado) |
 | `audit_log` | Eventos de seguridad (incluye archivos bloqueados por el antivirus) |

@@ -80,6 +80,29 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - En Chrome, si un aviso de "llamada atendida en otro dispositivo" llega sin mostrar nada, el navegador puede mostrar un aviso genérico ocasional.
 - En iPhone las notificaciones solo funcionan con la app **instalada** (iOS 16.4 o superior).
 
+## 2.4 Bloqueos y personas cercanas (Fase 5)
+
+**Bloqueo:**
+- Para quien fue bloqueado, quien lo bloqueó **"no existe"**: su perfil, agregarlo o abrir un chat responden igual que un tag inexistente, y desaparece de su agenda (sin borrar nada: al desbloquear vuelve todo).
+- En un chat 1 a 1 ya existente **ninguno de los dos** puede escribir, mandar archivos ni llamar (ni atender una llamada que estaba sonando); el historial queda. El aviso es el mismo para los dos: no se revela quién bloqueó.
+- En grupos: no se puede crear un grupo ni sumar a alguien con quien hay un bloqueo, y una llamada grupal no le suena. Dentro de un grupo existente se sigue pudiendo escribir (el grupo es de todos).
+- Los estados y "Personas cercanas" aplican el bloqueo **dentro de la consulta SQL**, en las dos direcciones.
+
+**Personas cercanas:**
+- **Opt-in explícito**: la API exige `consent: true` en cada activación y la web muestra antes qué se comparte. Se apaga sola a los **60 minutos**; "Volverme invisible", pausar la cuenta o darla de baja **borran la zona**. Una limpieza cada 5 minutos borra las vencidas (las búsquedas ya las ignoran igual).
+- **La ubicación exacta nunca llega al servidor**: el navegador la convierte en una celda de una grilla de ~1 km (`toNearbyCell`, en `packages/shared`) y solo envía fila y columna. La API rechaza cualquier pedido con coordenadas. En la base solo hay celdas; la auditoría registra "activó/desactivó", nunca dónde.
+- **Distancias por rangos** (menos de 2, 2–5, 5–10 y 10–25 km), calculadas entre centros de celdas; dentro de cada rango el orden es al azar (no filtra distancias finas).
+- **Qué se ve de alguien cercano:** nombre visible y foto. **Sin tag, bio, portada ni correo** hasta que acepte un saludo.
+- **Reciprocidad:** para ver a otros tenés que estar visible (nadie mira sin ser visto).
+- **Anti-triangulación:** cambiar de zona requiere 2 minutos desde el último cambio y hay un máximo de 20 cambios por día. Como mucho, alguien que falsee su ubicación puede averiguar **en qué celda de ~1 km** estás; nunca tu posición exacta.
+- **Saludos:** solo a quien aparece en tu lista en ese momento; 20 por día; vencen a las 24 h; el rechazo no se informa (para quien saludó, el saludo simplemente vence).
+
+**Límites honestos de la Fase 5:**
+- La ubicación la informa el navegador: alguien puede **falsearla** (por ejemplo, con herramientas de desarrollador). Los límites de cambios lo hacen lento, pero con **varias cuentas** una persona decidida podría ubicar la celda de ~1 km de alguien visible. Por eso la visibilidad es temporal y opcional.
+- En zonas poco pobladas, una celda de ~1 km puede identificar un barrio o una casa aislada. La pantalla de consentimiento lo advierte de forma general; conviene sumar una advertencia específica antes del lanzamiento.
+- Que alguien desaparezca de tu agenda o de tus búsquedas puede hacerte sospechar un bloqueo: ninguna app puede ocultarlo del todo.
+- No hay verificación de edad: definir una edad mínima (ver §5) es **obligatorio** antes de abrir esta función al público.
+
 ## 3. Cómo funciona la recuperación de contraseña
 
 - **Por correo:** `¿Olvidé mi contraseña?` → enlace de un solo uso, válido 1 hora → nueva contraseña (con la misma política) → todas las sesiones se cierran.
@@ -98,13 +121,15 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | Almacenamiento externo de archivos (S3/R2) | Disco local cifrado detrás del puerto `BlobStorage` | Adaptador S3/R2 al elegir proveedor |
 | Servidor de llamadas en producción | LiveKit en Docker solo para desarrollo | LiveKit propio (wss, credenciales propias, puertos UDP) o LiveKit Cloud |
 | Llamadas E2EE | No (el servidor de medios es de confianza) | Fase 7 |
+| Revisión de riesgos y legal de "Personas cercanas" | Diseño con celdas de 1 km, opt-in de 1 h y anti-rastreo (§2.4) | **Antes de abrirla al público** |
+| Edad mínima / verificación de edad | No implementada | Antes de lanzar (especialmente "Personas cercanas") |
 | Prueba de penetración externa | No realizada | **Obligatoria antes de lanzar** |
 | Moderación, denuncias y bajas por incumplimiento | Esquema preparado (`status: banned`, rol `support`) | Fase 6 |
 | Copias de seguridad y recuperación ante desastres | Depende del hosting elegido | Despliegue |
 | Gestor de secretos, rotación de claves | Solo variables de entorno | Despliegue |
 
 ## 4.1 Aviso sobre la ubicación (Fase 5)
-Saber "quién está cerca" es una de las funciones más delicadas para la privacidad y la seguridad física de las personas. Se diseñará **solo con consentimiento explícito (opt-in)**, **ubicación aproximada** (nunca coordenadas exactas), posibilidad de ocultarse, bloqueo de usuarios y límites para evitar rastreo (*triangulación*). Se recomienda no lanzarla a público general sin una revisión específica de riesgos.
+Saber "quién está cerca" es una de las funciones más delicadas para la privacidad y la seguridad física de las personas. Está implementada **solo con consentimiento explícito (opt-in)**, **ubicación aproximada** (celdas de ~1 km; lo exacto nunca sale del dispositivo), modo invisible, vencimiento automático, bloqueo de usuarios y límites contra el rastreo (ver §2.4). Aun así, **no se recomienda lanzarla a público general sin una revisión específica de riesgos y legal** (la ubicación es un dato personal sensible según la Ley 25.326 y el RGPD) y sin definir una edad mínima.
 
 ## 5. Marco legal y normativo a considerar (asesoría profesional necesaria)
 

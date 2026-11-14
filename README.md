@@ -3,7 +3,7 @@
 > **Conectá. Compartí. Disfrutá.**
 > Red social de mensajería **sin número de teléfono**: cada persona se identifica con un **tag** (`@tuusuario`), un correo verificado y una contraseña segura.
 
-Este repositorio contiene las **Fases 1 a 4** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real), el contenido multimedia (fotos, videos, notas de voz, documentos y stickers) los estados de 24 horas y las llamadas y videollamadas. Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
+Este repositorio contiene las **Fases 1 a 5** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real), el contenido multimedia (fotos, videos, notas de voz, documentos y stickers) los estados de 24 horas, las llamadas y videollamadas, y personas cercanas con bloqueo de usuarios. Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
 
 ---
 
@@ -26,10 +26,11 @@ Este repositorio contiene las **Fases 1 a 4** del proyecto: la base segura (cuen
 | **Fase 2:** fotos (cámara o galería), videos, **notas de voz**, documentos y **stickers** (pack general + "Mis stickers"), con antivirus, sin metadatos, cifrados y con URLs firmadas | ✅ |
 | **Fase 3:** **estados de 24 h** (texto, foto o video), con "Mi agenda / excepto… / solo con…", "Visto por" y avisos en tiempo real | ✅ |
 | **Fase 4:** **llamadas y videollamadas** 1 a 1 y en grupo (hasta 10) con LiveKit, registro en el chat y **notificaciones push** | ✅ |
-| Personas cercanas, panel de soporte | 🔜 Fases 5 y 6 |
+| **Fase 5:** **bloqueo de usuarios** y **personas cercanas** (opt-in de 1 h, zona aproximada de ~1 km, saludos que conectan las agendas) | ✅ |
+| Panel de soporte, denuncias y estadísticas | 🔜 Fase 6 |
 | Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7 |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 94 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 116 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 
@@ -91,8 +92,9 @@ Abrí **http://localhost:3000** en el navegador.
 5. Probá **Ajustes** (tema, texto, fondo) y **Perfil** (foto y portada).
 6. **Estados:** con las dos cuentas agregadas **mutuamente**, publicá un estado desde **Estados** y miralo desde la otra cuenta. Probá "Quién puede ver mis estados" y el botón **Visto por**.
 7. **Llamadas:** con Docker abierto (`npm run db:up` levanta LiveKit), tocá 📞 o 🎥 en un chat y atendé desde la otra cuenta (usá otro navegador o una ventana de incógnito). Activá **Ajustes → Notificaciones** para recibir avisos con la app cerrada.
+8. **Personas cercanas:** en las dos cuentas entrá a **Cercanos** y tocá **Hacerme visible** (el navegador pide permiso de ubicación). Saludá desde una cuenta y aceptá desde la otra: quedan en la agenda del otro. Probá **Bloquear** desde un perfil y desbloqueá en **Ajustes → Personas bloqueadas**.
 
-> Desde el celular (misma red Wi-Fi): abrí `http://IP-DE-TU-PC:3000`. Para producción necesitás HTTPS (ver sección 8).
+> Desde el celular (misma red Wi-Fi): abrí `http://IP-DE-TU-PC:3000`. Ojo: fuera de `localhost` los navegadores solo dan acceso a la **ubicación**, la cámara y el micrófono con **HTTPS**, así que "Cercanos" y las llamadas desde el celular necesitan HTTPS (ver sección 8).
 
 ---
 
@@ -101,7 +103,7 @@ Abrí **http://localhost:3000** en el navegador.
 | Comando | Qué hace |
 |---|---|
 | `npm run dev:api` / `npm run dev:web` | Inicia API / web en modo desarrollo |
-| `npm test` | Ejecuta las **20 pruebas automáticas** (seguridad, perfil, agenda, chats, tiempo real) |
+| `npm test` | Ejecuta las **pruebas automáticas** (seguridad, perfil, agenda, chats, multimedia, estados, llamadas, bloqueos, cercanos) |
 | `npm run typecheck` | Revisa los tipos de TypeScript en API y web |
 | `npm run build` | Compila todo para producción |
 | `npm run audit` | Busca vulnerabilidades conocidas en dependencias |
@@ -127,6 +129,8 @@ qemzagram/
 │  │  │  ├─ statuses/         ← estados de 24 h, privacidad, "visto por", limpieza
 │  │  │  ├─ calls/            ← llamadas: señalización, tokens de LiveKit, webhook
 │  │  │  ├─ notifications/    ← notificaciones push (Web Push / VAPID)
+│  │  │  ├─ blocks/           ← bloqueo de usuarios
+│  │  │  ├─ nearby/           ← personas cercanas (celdas de 1 km) y saludos
 │  │  │  ├─ realtime/         ← entrega en tiempo real (WebSocket)
 │  │  │  ├─ mail/             ← envío de correos (puerto + implementación SMTP)
 │  │  │  ├─ storage/          ← procesamiento seguro de imágenes
@@ -156,6 +160,7 @@ Más detalle y los principios SOLID aplicados: [`docs/ARQUITECTURA.md`](docs/ARQ
 - Protección **CSRF** (verificación de origen), validación estricta de toda entrada (Zod), cabeceras de seguridad (Helmet, CSP, HSTS).
 - Mensajes **cifrados en la base** (AES-256-GCM). Fotos re-procesadas (se eliminan metadatos y cualquier contenido oculto).
 - Registro de auditoría de eventos sensibles; sin contraseñas ni mensajes en los logs.
+- **Personas cercanas** solo con opt-in de 1 hora: la ubicación exacta nunca sale del celular (se envía una zona de ~1 km), distancias por rangos y límites contra el rastreo. **Bloqueo total** de usuarios.
 
 Detalle completo, límites y pendientes legales: [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md).
 

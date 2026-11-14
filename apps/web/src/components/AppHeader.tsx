@@ -5,12 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Avatar } from './Avatar';
-import { ChatIcon, CloseIcon, ContactsIcon, HelpIcon, LogoutIcon, MenuIcon, SettingsIcon, StatusIcon, UserIcon } from './icons';
+import { ChatIcon, CloseIcon, ContactsIcon, HelpIcon, LogoutIcon, MenuIcon, NearbyIcon, SettingsIcon, StatusIcon, UserIcon } from './icons';
 import { LogoMark } from './Logo';
 
 const TABS = [
   { href: '/chats', label: 'Chats', Icon: ChatIcon },
   { href: '/estados', label: 'Estados', Icon: StatusIcon },
+  { href: '/cercanos', label: 'Cercanos', Icon: NearbyIcon },
   { href: '/contactos', label: 'Contactos', Icon: ContactsIcon },
 ] as const;
 

@@ -27,9 +27,13 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ **Notificaciones push** (Web Push estándar con VAPID, sin Firebase) de llamadas entrantes y perdidas, con la app cerrada.
 - 🔜 Para producción: servidor LiveKit propio con `wss://` y credenciales propias (o LiveKit Cloud), con los puertos de medios abiertos. Ver `SEGURIDAD.md` §2.3.
 
-## Fase 5 — Personas cercanas
-- **Solo con consentimiento explícito (opt-in)**, ubicación **aproximada** (nunca coordenadas exactas), modo invisible, bloqueo de usuarios y límites contra rastreo por triangulación.
-- Requiere revisión específica de riesgos y de privacidad antes de abrirla al público.
+## ✅ Fase 5 — Personas cercanas
+- ✅ **Bloqueo total de usuarios**: quien te bloquea "no existe" para vos (perfil, agenda, chats nuevos); en un chat 1 a 1 ninguno puede escribir ni llamar; en grupos no te suena su llamada; los estados se ocultan en las dos direcciones. Bloquear desde el perfil o desde "Cercanos"; desbloquear en **Ajustes → Personas bloqueadas**.
+- ✅ **Opt-in explícito** con pantalla de consentimiento; la visibilidad **se apaga sola a la hora** (se puede renovar) y el **modo invisible** borra la zona guardada.
+- ✅ **Ubicación aproximada**: el celular convierte la posición en una **celda de ~1 km** y solo envía esa celda (lo exacto nunca sale del dispositivo). Distancias por rangos: menos de 2 km, 2–5, 5–10 y 10–25 km.
+- ✅ **Anti-rastreo**: para ver a otros tenés que estar visible; cambios de zona con 2 minutos de diferencia y como mucho 20 por día; orden al azar dentro de cada rango.
+- ✅ **Saludos**: solo a quien aparece en tu lista; al aceptar quedan en la agenda del otro (recién ahí se ve el tag); el rechazo no se revela; vencen a las 24 h; máximo 20 por día.
+- ⚠️ Antes de abrirla al público: revisión específica de riesgos, de privacidad y **legal** (ver `SEGURIDAD.md` §2.4 y §4.1).
 
 ## Fase 6 — Soporte, denuncias y estadísticas
 - Rol **soporte** con panel **sin acceso a conversaciones**: estadísticas agregadas de uso, gestión de denuncias y bajas.

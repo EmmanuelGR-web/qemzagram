@@ -19,6 +19,12 @@ export const StatusIcon = () => (
     <path d="M12 3a9 9 0 0 1 9 9M12 21a9 9 0 0 1-9-9" />
   </Icon>
 );
+export const NearbyIcon = () => (
+  <Icon>
+    <path d="M12 21s-6.500-5.600-6.500-11a6.500 6.500 0 0 1 13 0c0 5.400-6.500 11-6.500 11Z" />
+    <circle cx="12" cy="10" r="2.300" />
+  </Icon>
+);
 export const ContactsIcon = () => (
   <Icon>
     <circle cx="9" cy="8" r="3.500" />
