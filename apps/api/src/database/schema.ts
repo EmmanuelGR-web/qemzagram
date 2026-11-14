@@ -62,6 +62,9 @@ export const users = pgTable('users', {
   totpEnabledAt: ts('totp_enabled_at'),
   /** Último paso de 30 s usado: el mismo código no sirve dos veces (anti-repetición). */
   totpLastStep: integer('totp_last_step'),
+  /** Desafío WebAuthn vigente (CIFRADO, un solo uso, vence a los 5 minutos). */
+  webauthnChallengeEncrypted: text('webauthn_challenge_encrypted'),
+  webauthnChallengeExpiresAt: ts('webauthn_challenge_expires_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -497,6 +500,30 @@ export const appeals = pgTable(
   ],
 );
 
+/**
+ * Llaves de acceso (WebAuthn). Solo se guarda la clave PÚBLICA: la privada nunca sale del dispositivo.
+ * `counter` detecta autenticadores clonados (el contador nunca debe retroceder).
+ */
+export const passkeys = pgTable(
+  'passkeys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id').notNull().unique(),
+    publicKey: text('public_key').notNull(),
+    counter: integer('counter').notNull().default(0),
+    transports: text('transports').notNull().default(''),
+    deviceType: text('device_type').notNull(),
+    backedUp: boolean('backed_up').notNull().default(false),
+    name: text('name').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    lastUsedAt: ts('last_used_at'),
+  },
+  (table) => [index('passkeys_user_idx').on(table.userId)],
+);
+
 /** Códigos de respaldo del 2FA: solo su HMAC (con clave del servidor), de un solo uso. */
 export const mfaBackupCodes = pgTable(
   'mfa_backup_codes',
@@ -547,3 +574,4 @@ export type ReportEvidenceRow = typeof reportEvidence.$inferSelect;
 export type NewReportEvidenceRow = typeof reportEvidence.$inferInsert;
 export type AppealRow = typeof appeals.$inferSelect;
 export type MfaBackupCodeRow = typeof mfaBackupCodes.$inferSelect;
+export type PasskeyRow = typeof passkeys.$inferSelect;

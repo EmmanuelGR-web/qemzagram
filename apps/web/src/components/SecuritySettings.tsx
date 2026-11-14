@@ -1,14 +1,15 @@
 'use client';
 
-import type { BackupCodesDto, MfaStatusDto, SelfUser, TotpSetupDto } from '@qemzagram/shared';
+import { PASSKEY_NAME_MAX_LENGTH, type BackupCodesDto, type MfaStatusDto, type PasskeyDto, type SelfUser, type TotpSetupDto } from '@qemzagram/shared';
 import QRCode from 'qrcode';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { addPasskey, PasskeyCancelled, passkeysSupported } from '@/lib/passkeys';
 import { Modal } from './Modal';
 import { PasswordField } from './PasswordField';
 
-type Dialog = 'setup' | 'disable' | 'regenerate' | null;
+type Dialog = 'setup' | 'disable' | 'regenerate' | 'passkey' | null;
 
 /** Ajustes → Seguridad: verificación en dos pasos con app autenticadora y códigos de respaldo. */
 export function SecuritySettings() {
@@ -16,6 +17,7 @@ export function SecuritySettings() {
   const [status, setStatus] = useState<MfaStatusDto | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
+  const [removing, setRemoving] = useState<PasskeyDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -57,6 +59,38 @@ export function SecuritySettings() {
           </button>
         )}
       </div>
+      <div className="setting">
+        <div>
+          <strong>Llaves de acceso</strong>
+          <small>
+            {status && status.passkeys.length > 0
+              ? `${status.passkeys.length} ${status.passkeys.length === 1 ? 'llave registrada' : 'llaves registradas'}. Las llaves no funcionan en sitios falsos: protegen contra el phishing.`
+              : 'Usá la huella, la cara o el PIN de tu celular (o una llave física) como segundo paso.'}
+          </small>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={() => setDialog('passkey')} disabled={!status || !passkeysSupported()}>
+          Agregar
+        </button>
+      </div>
+      {status && status.passkeys.length > 0 && (
+        <ul className="passkey-list">
+          {status.passkeys.map((key) => (
+            <li key={key.id}>
+              <span>
+                <strong>{key.name}</strong>
+                <small className="muted">
+                  {key.lastUsedAt ? `Usada el ${new Date(key.lastUsedAt).toLocaleDateString('es-AR')}` : 'Sin usar todavía'}
+                  {key.backedUp ? ' · sincronizada' : ''}
+                </small>
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setRemoving(key)}>
+                Quitar
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!passkeysSupported() && status && <p className="muted small">Este navegador no admite llaves de acceso.</p>}
       {status?.enabled && (
         <div className="setting">
           <div>
@@ -72,6 +106,22 @@ export function SecuritySettings() {
       {dialog === 'setup' && <TotpSetupDialog onClose={() => setDialog(null)} onDone={finished} />}
       {dialog === 'disable' && <ConfirmDialog mode="disable" onClose={() => setDialog(null)} onDone={finished} />}
       {dialog === 'regenerate' && <ConfirmDialog mode="regenerate" onClose={() => setDialog(null)} onDone={finished} />}
+      {dialog === 'passkey' && (
+        <AddPasskeyDialog
+          onClose={() => setDialog(null)}
+          onDone={(backupCodes) => finished(backupCodes ? { codes: backupCodes } : undefined)}
+        />
+      )}
+      {removing && (
+        <RemovePasskeyDialog
+          passkey={removing}
+          onClose={() => setRemoving(null)}
+          onDone={() => {
+            setRemoving(null);
+            finished();
+          }}
+        />
+      )}
       {codes && <BackupCodesDialog codes={codes} onClose={() => setCodes(null)} />}
     </section>
   );
@@ -238,6 +288,77 @@ function BackupCodesDialog({ codes, onClose }: { codes: string[]; onClose: () =>
           Ya los guardé
         </button>
       </div>
+    </Modal>
+  );
+}
+
+function AddPasskeyDialog({ onClose, onDone }: { onClose: () => void; onDone: (backupCodes: string[] | null) => void }) {
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await addPasskey(password, name);
+      onDone(created.backupCodes);
+    } catch (caught) {
+      setError(caught instanceof PasskeyCancelled ? caught.message : errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Agregar una llave de acceso" onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <p className="muted small">Tu navegador te va a pedir la huella, la cara, el PIN del dispositivo o tocar tu llave física. La clave privada nunca sale de tu dispositivo.</p>
+        <div className="field">
+          <label htmlFor="passkey-name">Nombre</label>
+          <input id="passkey-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={PASSKEY_NAME_MAX_LENGTH} placeholder="Mi celular" />
+        </div>
+        <PasswordField label="Contraseña actual" value={password} onChange={setPassword} autoComplete="current-password" />
+        {error && <p className="alert alert-error">{error}</p>}
+        <button className="btn btn-primary" disabled={busy || !password || !name.trim()}>
+          {busy ? 'Esperando al dispositivo…' : 'Continuar'}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function RemovePasskeyDialog({ passkey, onClose, onDone }: { passkey: PasskeyDto; onClose: () => void; onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/auth/mfa/passkeys/${passkey.id}/delete`, { body: { password } });
+      onDone();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={`Quitar «${passkey.name}»`} onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <p className="muted small">Si era tu único segundo factor, la verificación en dos pasos se desactiva.</p>
+        <PasswordField label="Contraseña actual" value={password} onChange={setPassword} autoComplete="current-password" />
+        {error && <p className="alert alert-error">{error}</p>}
+        <button className="btn btn-danger" disabled={busy || !password}>
+          Quitar
+        </button>
+      </form>
     </Modal>
   );
 }

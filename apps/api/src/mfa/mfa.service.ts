@@ -3,6 +3,7 @@ import { MFA_BACKUP_CODES, type BackupCodesDto, type MfaMethod, type MfaStatusDt
 import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
 import { MfaRepository } from '../database/repositories/mfa.repository';
+import { PasskeysRepository } from '../database/repositories/passkeys.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import type { UserRow } from '../database/schema';
 import { MailPort } from '../mail/mail.port';
@@ -22,6 +23,7 @@ export class MfaService {
   constructor(
     private readonly users: UsersRepository,
     private readonly mfa: MfaRepository,
+    private readonly passkeys: PasskeysRepository,
     private readonly crypto: CryptoService,
     private readonly mail: MailPort,
     private readonly audit: AuditService,
@@ -29,12 +31,19 @@ export class MfaService {
 
   async status(userId: string): Promise<MfaStatusDto> {
     const user = await this.requireUser(userId);
-    return { enabled: user.mfaEnabled, totp: user.totpEnabledAt !== null, backupCodesLeft: await this.mfa.countBackupCodesLeft(userId) };
+    const keys = await this.passkeys.listForUser(userId);
+    return {
+      enabled: user.mfaEnabled,
+      totp: user.totpEnabledAt !== null,
+      backupCodesLeft: await this.mfa.countBackupCodesLeft(userId),
+      passkeys: keys.map((key) => ({ id: key.id, name: key.name, backedUp: key.backedUp, createdAt: key.createdAt.toISOString(), lastUsedAt: key.lastUsedAt?.toISOString() ?? null })),
+    };
   }
 
   /** Métodos disponibles para el segundo paso del login. */
   async methodsFor(user: UserRow): Promise<MfaMethod[]> {
     const methods: MfaMethod[] = [];
+    if ((await this.passkeys.countForUser(user.id)) > 0) methods.push('passkey');
     if (user.totpEnabledAt) methods.push('totp');
     if ((await this.mfa.countBackupCodesLeft(user.id)) > 0) methods.push('backup');
     return methods;
@@ -75,8 +84,8 @@ export class MfaService {
     const user = await this.requirePassword(userId, password);
     if (!user.totpEnabledAt) throw new ConflictException({ code: 'TOTP_NOT_ENABLED', message: 'La app autenticadora no está activada' });
     if (!(await this.verifyAnyCode(user, code))) throw new BadRequestException(INVALID_CODE);
-    await this.users.update(userId, { totpSecretEncrypted: null, totpPendingEncrypted: null, totpEnabledAt: null, totpLastStep: null, mfaEnabled: false });
-    await this.mfa.deleteBackupCodes(userId);
+    await this.users.update(userId, { totpSecretEncrypted: null, totpPendingEncrypted: null, totpEnabledAt: null, totpLastStep: null });
+    await this.refreshEnabled(userId);
     await this.audit.log('mfa.totp_disabled', { userId });
     await this.mail.sendSecurityAlert(user.email, user.displayName, 'mfa_disabled');
   }
@@ -91,8 +100,24 @@ export class MfaService {
     return codes;
   }
 
-  /** Segundo paso del login. Devuelve si el código es correcto (y lo "gasta"). */
-  async verifyLoginFactor(user: UserRow, input: MfaVerifyInput, now = Date.now()): Promise<boolean> {
+  /**
+   * Recalcula si queda algún segundo factor (TOTP o llaves). Si no queda ninguno, los códigos de
+   * respaldo se borran: no tiene sentido un "respaldo" sin factor principal.
+   */
+  async refreshEnabled(userId: string): Promise<boolean> {
+    const user = await this.requireUser(userId);
+    const enabled = user.totpEnabledAt !== null || (await this.passkeys.countForUser(userId)) > 0;
+    await this.users.update(userId, { mfaEnabled: enabled });
+    if (!enabled) await this.mfa.deleteBackupCodes(userId);
+    return enabled;
+  }
+
+  backupCodesLeft(userId: string): Promise<number> {
+    return this.mfa.countBackupCodesLeft(userId);
+  }
+
+  /** Segundo paso del login con código (TOTP o respaldo). Las llaves de acceso las verifica PasskeysService. */
+  async verifyLoginFactor(user: UserRow, input: Exclude<MfaVerifyInput, { method: 'passkey' }>, now = Date.now()): Promise<boolean> {
     if (input.method === 'totp') return this.checkTotp(user, input.code, now);
     const ok = await this.mfa.consumeBackupCode(user.id, this.crypto.hashSecret(normalizeBackupCode(input.code)));
     if (ok) {
@@ -117,7 +142,7 @@ export class MfaService {
     return this.users.advanceTotpStep(user.id, step);
   }
 
-  private async issueBackupCodes(userId: string): Promise<BackupCodesDto> {
+  async issueBackupCodes(userId: string): Promise<BackupCodesDto> {
     const codes = Array.from({ length: MFA_BACKUP_CODES }, generateBackupCode);
     await this.mfa.replaceBackupCodes(
       userId,

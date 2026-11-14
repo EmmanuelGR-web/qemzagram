@@ -7,6 +7,7 @@ import { useState, type FormEvent } from 'react';
 import { PasswordField } from '@/components/PasswordField';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { PasskeyCancelled, passkeysSupported, signWithPasskey } from '@/lib/passkeys';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [mfaMethods, setMfaMethods] = useState<MfaMethod[] | null>(null);
   const [mfaMethod, setMfaMethod] = useState<'totp' | 'backup'>('totp');
   const [code, setCode] = useState('');
+  const [canUsePasskey, setCanUsePasskey] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -34,6 +36,7 @@ export default function LoginPage() {
       if (result.mfaRequired) {
         setMfaMethods(result.methods);
         setMfaMethod(result.methods.includes('totp') ? 'totp' : 'backup');
+        setCanUsePasskey(result.methods.includes('passkey') && passkeysSupported());
         setPassword('');
         return;
       }
@@ -69,6 +72,24 @@ export default function LoginPage() {
     }
   }
 
+  async function signInWithPasskey() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await signWithPasskey();
+      const result = await api<LoginResultDto>('/auth/mfa/verify', { body: { method: 'passkey', response } });
+      if (!result.mfaRequired) {
+        setUser(result.user);
+        router.replace('/chats');
+      }
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === 'MFA_EXPIRED') setMfaMethods(null);
+      setError(caught instanceof PasskeyCancelled ? caught.message : errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function resend() {
     try {
       await api('/auth/resend-verification', { body: { email: resendEmail } });
@@ -82,6 +103,14 @@ export default function LoginPage() {
     return (
       <>
         <h2>Verificación en dos pasos</h2>
+        {canUsePasskey && (
+          <>
+            <button type="button" className="btn btn-primary" onClick={() => void signInWithPasskey()} disabled={busy}>
+              {busy ? 'Esperando al dispositivo…' : 'Usar mi llave de acceso'}
+            </button>
+            <p className="muted small or-divider">o con un código</p>
+          </>
+        )}
         <p className="muted">{mfaMethod === 'totp' ? 'Escribí el código de 6 dígitos que muestra tu app autenticadora.' : 'Escribí uno de tus códigos de respaldo.'}</p>
         <form onSubmit={verifyCode} className="form" noValidate>
           <div className="field">

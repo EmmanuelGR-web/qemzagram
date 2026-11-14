@@ -39,7 +39,9 @@ export type AuditAction =
   | 'mfa.totp_enabled'
   | 'mfa.totp_disabled'
   | 'mfa.backup_used'
-  | 'mfa.backup_regenerated';
+  | 'mfa.backup_regenerated'
+  | 'mfa.passkey_added'
+  | 'mfa.passkey_removed';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

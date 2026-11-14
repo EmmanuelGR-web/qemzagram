@@ -30,6 +30,8 @@ import {
   APPEAL_STATUSES,
   SUPPORT_NOTE_MAX_LENGTH,
   TOTP_DIGITS,
+  PASSKEY_NAME_MAX_LENGTH,
+  WEBAUTHN_TRANSPORTS,
 } from './constants';
 import { getPasswordIssues, PASSWORD_ISSUE_MESSAGES } from './password';
 
@@ -307,10 +309,59 @@ const backupCodeSchema = z
 
 const currentPasswordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
 
+/* Respuestas WebAuthn del navegador: forma estricta y tamaños acotados (la firma la verifica el servidor). */
+const b64url = (max: number) =>
+  z
+    .string()
+    .regex(/^[A-Za-z0-9_-]+$/, 'Formato inválido')
+    .max(max);
+const extensionsSchema = z.record(z.string(), z.unknown()).refine((value) => JSON.stringify(value).length <= 2000, 'Extensiones demasiado grandes');
+
+export const webauthnRegistrationSchema = z
+  .object({
+    id: b64url(1400),
+    rawId: b64url(1400),
+    type: z.literal('public-key'),
+    response: z
+      .object({
+        clientDataJSON: b64url(4096),
+        attestationObject: b64url(16384),
+        authenticatorData: b64url(8192).optional(),
+        transports: z.array(z.enum(WEBAUTHN_TRANSPORTS)).max(8).optional(),
+        publicKeyAlgorithm: z.number().int().optional(),
+        publicKey: b64url(2048).optional(),
+      })
+      .strict(),
+    clientExtensionResults: extensionsSchema,
+    authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+  })
+  .strict();
+export type WebAuthnRegistrationInput = z.infer<typeof webauthnRegistrationSchema>;
+
+export const webauthnAuthenticationSchema = z
+  .object({
+    id: b64url(1400),
+    rawId: b64url(1400),
+    type: z.literal('public-key'),
+    response: z
+      .object({
+        clientDataJSON: b64url(4096),
+        authenticatorData: b64url(8192),
+        signature: b64url(1024),
+        userHandle: b64url(512).optional(),
+      })
+      .strict(),
+    clientExtensionResults: extensionsSchema,
+    authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+  })
+  .strict();
+export type WebAuthnAuthenticationInput = z.infer<typeof webauthnAuthenticationSchema>;
+
 /** Segundo paso del login. */
 export const mfaVerifySchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('totp'), code: totpCodeSchema }).strict(),
   z.object({ method: z.literal('backup'), code: backupCodeSchema }).strict(),
+  z.object({ method: z.literal('passkey'), response: webauthnAuthenticationSchema }).strict(),
 ]);
 export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>;
 
@@ -320,3 +371,13 @@ export const totpEnableSchema = z.object({ code: totpCodeSchema }).strict();
 export const mfaConfirmSchema = z
   .object({ password: currentPasswordSchema, code: z.string().trim().min(6).max(12) })
   .strict();
+
+export const passkeyOptionsSchema = z.object({ password: currentPasswordSchema }).strict();
+export const passkeyRegisterSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Ponele un nombre (por ejemplo "Mi celular")').max(PASSKEY_NAME_MAX_LENGTH),
+    response: webauthnRegistrationSchema,
+  })
+  .strict();
+export type PasskeyRegisterInput = z.infer<typeof passkeyRegisterSchema>;
+export const passkeyDeleteSchema = z.object({ password: currentPasswordSchema }).strict();

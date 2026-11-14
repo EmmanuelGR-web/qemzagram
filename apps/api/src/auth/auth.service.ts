@@ -31,6 +31,8 @@ import { UsersRepository } from '../database/repositories/users.repository';
 import type { UserRow } from '../database/schema';
 import { MailPort } from '../mail/mail.port';
 import { MfaService } from '../mfa/mfa.service';
+import { PasskeysService } from '../mfa/passkeys.service';
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/server';
 import {
   LOCK_DURATION_MS,
   MAX_FAILED_LOGINS,
@@ -68,6 +70,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly appeals: AppealsRepository,
     private readonly mfa: MfaService,
+    private readonly passkeys: PasskeysService,
   ) {}
 
   /**
@@ -136,6 +139,24 @@ export class AuthService {
    * (5 intentos → 15 minutos), así que no se pueden probar los 6 dígitos por fuerza bruta.
    */
   async verifyMfa(ticket: string | undefined, input: MfaVerifyInput, meta: ClientMeta): Promise<AuthResult> {
+    const user = await this.userFromMfaTicket(ticket);
+    this.assertNotLocked(user, meta);
+
+    const ok = input.method === 'passkey' ? await this.passkeys.verifyLogin(user, input.response) : await this.mfa.verifyLoginFactor(user, input);
+    if (!ok) {
+      await this.registerFailure(user, meta);
+      await this.audit.log('login.mfa_failed', { userId: user.id, ip: meta.ip, meta: { method: input.method } });
+      throw new UnauthorizedException(INVALID_MFA);
+    }
+    return this.completeLogin(user, meta, input.method);
+  }
+
+  /** Opciones para firmar con una llave de acceso en el segundo paso (requiere el ticket de la contraseña). */
+  async passkeyLoginOptions(ticket: string | undefined): Promise<PublicKeyCredentialRequestOptionsJSON> {
+    return this.passkeys.loginOptions(await this.userFromMfaTicket(ticket));
+  }
+
+  private async userFromMfaTicket(ticket: string | undefined): Promise<UserRow> {
     if (!ticket) throw new UnauthorizedException(MFA_EXPIRED);
     let userId: string;
     try {
@@ -146,14 +167,7 @@ export class AuthService {
     const user = await this.users.findById(userId);
     if (!user || user.status === 'deleted' || !user.mfaEnabled) throw new UnauthorizedException(MFA_EXPIRED);
     this.assertCanSignIn(user);
-    this.assertNotLocked(user, meta);
-
-    if (!(await this.mfa.verifyLoginFactor(user, input))) {
-      await this.registerFailure(user, meta);
-      await this.audit.log('login.mfa_failed', { userId: user.id, ip: meta.ip, meta: { method: input.method } });
-      throw new UnauthorizedException(INVALID_MFA);
-    }
-    return this.completeLogin(user, meta, input.method);
+    return user;
   }
 
   /** Estos chequeos van DESPUÉS de validar la contraseña: nadie ajeno aprende el estado de la cuenta. */

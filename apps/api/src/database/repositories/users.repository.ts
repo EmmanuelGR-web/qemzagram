@@ -23,6 +23,8 @@ export type UserPatch = Partial<
     | 'totpPendingEncrypted'
     | 'totpEnabledAt'
     | 'totpLastStep'
+    | 'webauthnChallengeEncrypted'
+    | 'webauthnChallengeExpiresAt'
   >
 >;
 

@@ -8,6 +8,7 @@ import { GreetingsRepository } from './repositories/greetings.repository';
 import { ReportsRepository } from './repositories/reports.repository';
 import { AppealsRepository } from './repositories/appeals.repository';
 import { MfaRepository } from './repositories/mfa.repository';
+import { PasskeysRepository } from './repositories/passkeys.repository';
 import { SupportStatsRepository } from './repositories/support-stats.repository';
 import { NearbyRepository } from './repositories/nearby.repository';
 import { AttachmentsRepository } from './repositories/attachments.repository';
@@ -73,6 +74,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     ReportsRepository,
     AppealsRepository,
     MfaRepository,
+    PasskeysRepository,
     SupportStatsRepository,
   ],
   exports: [
@@ -93,6 +95,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     ReportsRepository,
     AppealsRepository,
     MfaRepository,
+    PasskeysRepository,
     SupportStatsRepository,
   ],
 })

@@ -169,3 +169,7 @@ export const MFA_BACKUP_CODES = 10;
 /** Minutos para completar el segundo paso del login. */
 export const MFA_LOGIN_MINUTES = 5;
 export const MFA_METHODS = ['totp', 'backup', 'passkey'] as const;
+/** Llaves de acceso (passkeys / WebAuthn) por cuenta. */
+export const PASSKEYS_MAX = 10;
+export const PASSKEY_NAME_MAX_LENGTH = 40;
+export const WEBAUTHN_TRANSPORTS = ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb'] as const;

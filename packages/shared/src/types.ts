@@ -411,6 +411,23 @@ export interface MfaStatusDto {
   enabled: boolean;
   totp: boolean;
   backupCodesLeft: number;
+  passkeys: PasskeyDto[];
+}
+
+/** Una llave de acceso registrada (huella, cara, PIN del celular o llave física). Nunca incluye la clave. */
+export interface PasskeyDto {
+  id: string;
+  name: string;
+  /** Sincronizada en la nube del fabricante (por ejemplo, llavero de iCloud o Google). */
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface PasskeyRegisteredDto {
+  passkey: PasskeyDto;
+  /** Si era el primer segundo factor, códigos de respaldo nuevos (se muestran una sola vez). */
+  backupCodes: string[] | null;
 }
 
 /** Datos para cargar en la app autenticadora. Se muestran UNA vez, al configurar. */

@@ -50,7 +50,7 @@ describe('Verificación en dos pasos (TOTP + códigos de respaldo)', () => {
     const codes = (await ana.agent.post('/auth/mfa/totp/enable').send({ code: totpCode(setup.secret) }).expect(200)).body as BackupCodesDto;
     expect(codes.codes).toHaveLength(10);
     expect(codes.codes[0]).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-    expect((await ana.agent.get('/auth/mfa').expect(200)).body as MfaStatusDto).toEqual({ enabled: true, totp: true, backupCodesLeft: 10 });
+    expect((await ana.agent.get('/auth/mfa').expect(200)).body as MfaStatusDto).toEqual({ enabled: true, totp: true, backupCodesLeft: 10, passkeys: [] });
     expect(((await ana.agent.get('/users/me').expect(200)).body as SelfUser).mfaEnabled).toBe(true);
     expect(ctx.mail.securityAlerts).toContainEqual({ to: ana.email, event: 'mfa_enabled' });
 
@@ -124,7 +124,7 @@ describe('Verificación en dos pasos (TOTP + códigos de respaldo)', () => {
 
     await eva.agent.post('/auth/mfa/totp/disable').send({ password: eva.password }).expect(400);
     await eva.agent.post('/auth/mfa/totp/disable').send({ password: eva.password, code: renewed.codes[0] }).expect(204);
-    expect((await eva.agent.get('/auth/mfa').expect(200)).body as MfaStatusDto).toEqual({ enabled: false, totp: false, backupCodesLeft: 0 });
+    expect((await eva.agent.get('/auth/mfa').expect(200)).body as MfaStatusDto).toEqual({ enabled: false, totp: false, backupCodesLeft: 0, passkeys: [] });
     expect(ctx.mail.securityAlerts).toContainEqual({ to: eva.email, event: 'mfa_disabled' });
     // Sin 2FA, el login vuelve a ser de un paso.
     expect((await freshLogin(eva)).body.mfaRequired).toBe(false);

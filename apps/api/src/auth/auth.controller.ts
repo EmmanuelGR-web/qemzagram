@@ -21,6 +21,7 @@ import { clientMeta, CurrentUser, Public, type AuthUser } from '../common/decora
 import { ZodPipe } from '../common/zod.pipe';
 import { ENV, type AppEnv } from '../config/env';
 import { MFA_LOGIN_MINUTES } from '@qemzagram/shared';
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/server';
 import { ACCESS_COOKIE, ACCESS_TTL_SECONDS, MFA_COOKIE, REFRESH_COOKIE, REFRESH_TTL_SECONDS } from './auth.constants';
 import { AuthService, type AuthResult } from './auth.service';
 import { TokensService } from './tokens.service';
@@ -81,7 +82,16 @@ export class AuthController {
     return { mfaRequired: false, user: outcome.session.user };
   }
 
-  /** Segundo paso del login: código de la app autenticadora o de respaldo. */
+  /** Segundo paso con llave de acceso: el desafío a firmar (exige haber pasado por la contraseña). */
+  @Public()
+  @Post('mfa/passkey/options')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  passkeyOptions(@Req() request: Request): Promise<PublicKeyCredentialRequestOptionsJSON> {
+    return this.auth.passkeyLoginOptions(this.readCookie(request, MFA_COOKIE));
+  }
+
+  /** Segundo paso del login: código de la app autenticadora, de respaldo o llave de acceso. */
   @Public()
   @Post('mfa/verify')
   @HttpCode(200)
