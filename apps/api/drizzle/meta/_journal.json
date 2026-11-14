@@ -78,6 +78,13 @@
       "when": 1794620017153,
       "tag": "0010_saludos",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794629677393,
+      "tag": "0011_silenciar_chats",
+      "breakpoints": true
     }
   ]
 }

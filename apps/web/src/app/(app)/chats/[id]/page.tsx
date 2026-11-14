@@ -1,20 +1,26 @@
 'use client';
 
-import { GROUP_MAX_MEMBERS, type ConversationDto, type MessageDto } from '@qemzagram/shared';
+import { GROUP_MAX_MEMBERS, type ChatMuteDuration, type ConversationDto, type MessageDto } from '@qemzagram/shared';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Avatar } from '@/components/Avatar';
 import { Composer } from '@/components/chat/Composer';
 import { MessageContent } from '@/components/chat/MessageContent';
-import { BackIcon, GroupIcon, PhoneIcon, VideoIcon } from '@/components/icons';
+import { BackIcon, BellIcon, BellOffIcon, GroupIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage, refreshSession } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { unblockUser } from '@/lib/blocks';
 import { useCalls } from '@/lib/call-context';
-import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
+import { describeConversation, formatTime, mutedLabel, useChats } from '@/lib/chats-context';
 import { useRealtimeEvent } from '@/lib/realtime-context';
+
+const MUTE_OPTIONS: { value: Exclude<ChatMuteDuration, 'off'>; label: string }[] = [
+  { value: '8h', label: 'Silenciar 8 horas' },
+  { value: '1w', label: 'Silenciar 1 semana' },
+  { value: 'always', label: 'Silenciar siempre' },
+];
 
 export default function ConversationPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +35,7 @@ export default function ConversationPage() {
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [showMute, setShowMute] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMediaRefresh = useRef(0);
 
@@ -99,6 +106,17 @@ export default function ConversationPage() {
     }
   }
 
+  async function setMute(target: ConversationDto, duration: ChatMuteDuration) {
+    try {
+      const fresh = await api<ConversationDto>(`/chats/${target.id}/mute`, { method: 'PUT', body: { duration } });
+      setConversation(fresh);
+      upsert(fresh);
+      setShowMute(false);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   const info = describeConversation(conversation, user.id);
   const isGroup = conversation.type === 'group';
   const authors = new Map(conversation.members.map((member) => [member.user.id, member.user]));
@@ -117,6 +135,14 @@ export default function ConversationPage() {
           </span>
         </button>
         <div className="conversation-actions">
+          <button
+            className="icon-btn"
+            onClick={() => setShowMute(true)}
+            aria-label={conversation.mutedUntil ? 'Chat silenciado' : 'Silenciar chat'}
+            title={conversation.mutedUntil ? mutedLabel(conversation.mutedUntil) : 'Silenciar'}
+          >
+            {conversation.mutedUntil ? <BellOffIcon /> : <BellIcon />}
+          </button>
           <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'audio')} disabled={Boolean(calls.active || ongoing || conversation.blockedByMe)} aria-label="Llamar" title="Llamar">
             <PhoneIcon />
           </button>
@@ -125,6 +151,26 @@ export default function ConversationPage() {
           </button>
         </div>
       </header>
+
+      {showMute && (
+        <Modal title="Notificaciones de este chat" onClose={() => setShowMute(false)}>
+          <p className="muted">
+            {conversation.mutedUntil ? `${mutedLabel(conversation.mutedUntil)}.` : 'Si lo silenciás, los mensajes siguen llegando pero sin avisos.'} Las llamadas siempre suenan.
+          </p>
+          <div className="mute-options">
+            {MUTE_OPTIONS.map((option) => (
+              <button key={option.value} className="btn btn-ghost" onClick={() => void setMute(conversation, option.value)}>
+                {option.label}
+              </button>
+            ))}
+            {conversation.mutedUntil && (
+              <button className="btn btn-primary" onClick={() => void setMute(conversation, 'off')}>
+                Activar notificaciones
+              </button>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {canJoin && ongoing && (
         <div className="call-banner">

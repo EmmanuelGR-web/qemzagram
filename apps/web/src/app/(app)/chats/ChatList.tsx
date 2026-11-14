@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Avatar } from '@/components/Avatar';
-import { GroupIcon, PlusIcon } from '@/components/icons';
+import { BellOffIcon, GroupIcon, PlusIcon } from '@/components/icons';
 import { useAuth } from '@/lib/auth-context';
 import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
 import { messagePreview } from '@/lib/messages';
@@ -67,6 +67,11 @@ export function ChatList() {
                 <span className="chat-item-body">
                   <span className="chat-item-top">
                     <strong>{info.title}</strong>
+                    {conversation.mutedUntil && (
+                      <span className="chat-muted" title="Silenciado" aria-label="Silenciado">
+                        <BellOffIcon size={14} />
+                      </span>
+                    )}
                     {conversation.lastMessage && <time>{formatTime(conversation.lastMessage.createdAt)}</time>}
                   </span>
                   <span className="chat-item-preview">{preview}</span>

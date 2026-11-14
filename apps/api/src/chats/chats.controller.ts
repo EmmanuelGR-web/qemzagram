@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -19,11 +20,13 @@ import {
   createDirectChatSchema,
   createGroupSchema,
   listMessagesQuerySchema,
+  muteChatSchema,
   MESSAGE_MAX_LENGTH,
   sendAttachmentSchema,
   sendMessageSchema,
   sendStickerSchema,
   UPLOAD_MAX_BYTES_ANY,
+  type ChatMuteDuration,
   type ConversationDto,
   type CreateGroupInput,
   type MessageDto,
@@ -88,6 +91,16 @@ export class ChatsController {
     @Body(new ZodPipe(addGroupMemberSchema)) body: { tag: string },
   ): Promise<ConversationDto> {
     return this.chats.addMember(user.id, id, body.tag);
+  }
+
+  @Put(':id/mute')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  mute(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(muteChatSchema)) body: { duration: ChatMuteDuration },
+  ): Promise<ConversationDto> {
+    return this.chats.mute(user.id, id, body.duration);
   }
 
   @Delete(':id/members/me')

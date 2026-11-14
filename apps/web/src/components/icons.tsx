@@ -208,3 +208,16 @@ export const SwitchCameraIcon = () => (
     <path d="m18 22-3-3 3-3M6 2l3 3-3 3" />
   </Icon>
 );
+export const BellIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+    <path d="M10.300 21a1.900 1.900 0 0 0 3.400 0" />
+  </Icon>
+);
+export const BellOffIcon = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M8.700 3A6 6 0 0 1 18 8c0 2.800.5 4.800 1.200 6.200M17 17H3s3-2 3-9c0-.8.1-1.500.4-2.200" />
+    <path d="M10.300 21a1.900 1.900 0 0 0 3.400 0" />
+    <path d="m2 2 20 20" />
+  </Icon>
+);

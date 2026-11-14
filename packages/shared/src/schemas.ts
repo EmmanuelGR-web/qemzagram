@@ -8,6 +8,7 @@ import {
   GROUP_TITLE_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
   CALL_KINDS,
+  CHAT_MUTE_DURATIONS,
   CONTACTS_MAX,
   STATUS_AUDIENCES,
   STATUS_BACKGROUNDS,
@@ -115,6 +116,8 @@ export const createGroupSchema = z.object({
     .min(1, 'Elegí al menos un miembro')
     .max(GROUP_MAX_MEMBERS - 1, `Un grupo admite hasta ${GROUP_MAX_MEMBERS} miembros`),
 });
+
+export const muteChatSchema = z.object({ duration: z.enum(CHAT_MUTE_DURATIONS, { message: 'Duración inválida' }) }).strict();
 
 export const addGroupMemberSchema = z.object({ tag: tagLookupSchema });
 

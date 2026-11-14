@@ -74,6 +74,16 @@ export function describeConversation(conversation: ConversationDto, myId: string
   return { title: other?.displayName ?? 'Conversación', subject: other ?? null, subtitle: other ? `@${other.tag}` : '' };
 }
 
+/** "Silenciado hasta las 22:30", "Silenciado hasta el 21/11" o "Silenciado siempre". */
+export function mutedLabel(iso: string): string {
+  const until = new Date(iso);
+  if (until.getFullYear() >= 9999) return 'Silenciado siempre';
+  const sameDay = until.toDateString() === new Date().toDateString();
+  return sameDay
+    ? `Silenciado hasta las ${until.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`
+    : `Silenciado hasta el ${until.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} a las ${until.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 export function formatTime(iso: string): string {
   const date = new Date(iso);
   const now = new Date();

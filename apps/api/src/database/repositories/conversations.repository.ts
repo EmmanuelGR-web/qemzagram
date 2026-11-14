@@ -14,6 +14,7 @@ import {
 export interface MemberWithUser {
   conversationId: string;
   role: 'admin' | 'member';
+  mutedUntil: Date | null;
   user: UserRow;
 }
 
@@ -72,7 +73,7 @@ export class ConversationsRepository {
   async getMembers(conversationIds: string[]): Promise<MemberWithUser[]> {
     if (conversationIds.length === 0) return [];
     return this.db
-      .select({ conversationId: conversationMembers.conversationId, role: conversationMembers.role, user: users })
+      .select({ conversationId: conversationMembers.conversationId, role: conversationMembers.role, mutedUntil: conversationMembers.mutedUntil, user: users })
       .from(conversationMembers)
       .innerJoin(users, eq(users.id, conversationMembers.userId))
       .where(inArray(conversationMembers.conversationId, conversationIds));
@@ -103,6 +104,13 @@ export class ConversationsRepository {
     await this.db
       .update(conversationMembers)
       .set({ role })
+      .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, userId)));
+  }
+
+  async setMutedUntil(conversationId: string, userId: string, mutedUntil: Date | null): Promise<void> {
+    await this.db
+      .update(conversationMembers)
+      .set({ mutedUntil })
       .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, userId)));
   }
 

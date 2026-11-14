@@ -598,3 +598,18 @@ html[data-theme='dark'] .call-log[data-missed='true'] .call-log-icon { backgroun
 
 .checkbox { display: flex; align-items: flex-start; gap: 0.6rem; font-weight: 600; cursor: pointer; }
 .checkbox input { width: 20px; height: 20px; margin-top: 0.1rem; accent-color: var(--red-600); flex: none; }
+
+/* ---------- Silenciar chats ---------- */
+.mute-options {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.chat-muted {
+  display: inline-flex;
+  color: var(--muted);
+  flex: none;
+  align-self: center;
+  margin-left: 0.25rem;
+  margin-right: auto;
+}

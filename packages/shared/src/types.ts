@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, CALL_END_REASONS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 import type { NearbyDistance, NearbyGreetingState } from './nearby';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
@@ -83,6 +83,8 @@ export interface ConversationMemberDto {
   role: MemberRole;
 }
 
+export type ChatMuteDuration = (typeof CHAT_MUTE_DURATIONS)[number];
+
 export interface ConversationDto {
   id: string;
   type: ConversationType;
@@ -92,6 +94,8 @@ export interface ConversationDto {
   createdAt: string;
   /** Chat 1 a 1 con alguien que VOS bloqueaste: no se puede escribir ni llamar hasta desbloquear. */
   blockedByMe: boolean;
+  /** Hasta cuándo VOS silenciaste este chat (null = con notificaciones). Lo ve solo quien silenció. */
+  mutedUntil: string | null;
 }
 
 export type StatusKind = (typeof STATUS_KINDS)[number];
@@ -207,7 +211,9 @@ export interface CallJoinDto {
 export type PushPayload =
   | { type: 'call'; callId: string; conversationId: string; kind: CallKind; title: string; group: boolean }
   /** La llamada dejó de sonar (la atendieron, la rechazaron o terminó): cerrar la notificación. */
-  | { type: 'call-closed'; callId: string; conversationId: string; kind: CallKind; title: string; missed: boolean };
+  | { type: 'call-closed'; callId: string; conversationId: string; kind: CallKind; title: string; missed: boolean }
+  /** Mensaje nuevo. NUNCA lleva el contenido: solo quién (o qué grupo) y a qué chat abrir. */
+  | { type: 'message'; conversationId: string; title: string; group: boolean };
 
 export interface PushConfigDto {
   /** Clave pública VAPID (null = notificaciones deshabilitadas en el servidor). */

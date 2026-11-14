@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   GROUP_MAX_MEMBERS,
+  type ChatMuteDuration,
   type ConversationDto,
   type CreateGroupInput,
   type GeneralStickerCode,
@@ -22,12 +23,20 @@ import { UsersRepository } from '../database/repositories/users.repository';
 import type { AttachmentRow, CallRow, ConversationRow, MessageRow, UserRow } from '../database/schema';
 import { MediaProcessor, type ProcessedMedia, type UploadedInput } from '../media/media-processor.service';
 import { MediaService } from '../media/media.service';
+import { PushService } from '../notifications/push.service';
 import { RealtimePublisher } from '../realtime/realtime.port';
 import { StickersService } from '../stickers/stickers.service';
 import { BlobStorage } from '../storage/blob-storage.port';
 
 const NOT_FOUND = { code: 'CHAT_NOT_FOUND', message: 'No encontramos esa conversación' };
 const UNAVAILABLE_BODY = '[Mensaje no disponible]';
+/** "Para siempre" se guarda como una fecha lejana: así una sola comparación (`mutedUntil > ahora`) alcanza. */
+const MUTED_FOREVER = new Date('9999-12-31T00:00:00.000Z');
+const MUTE_MS: Record<Exclude<ChatMuteDuration, 'off' | 'always'>, number> = { '8h': 8 * 60 * 60 * 1000, '1w': 7 * 24 * 60 * 60 * 1000 };
+/** El aviso de un mensaje se reemplaza por el siguiente del mismo chat y no se guarda más de 1 día. */
+const MESSAGE_PUSH_TTL_SECONDS = 24 * 60 * 60;
+
+const isMuted = (mutedUntil: Date | null, now = new Date()) => mutedUntil !== null && mutedUntil > now;
 /** Mismo aviso para las dos personas: no se revela quién bloqueó a quién. */
 export const CHAT_BLOCKED = { code: 'CHAT_BLOCKED', message: 'No podés enviar mensajes ni llamar en este chat' };
 
@@ -48,6 +57,7 @@ export class ChatsService {
     private readonly stickers: StickersService,
     private readonly calls: CallsRepository,
     private readonly blocks: BlocksService,
+    private readonly push: PushService,
   ) {}
 
   async list(userId: string): Promise<ConversationDto[]> {
@@ -156,6 +166,14 @@ export class ChatsService {
     }
   }
 
+  /** Silencia (o vuelve a activar) las notificaciones de mensajes de un chat, solo para quien lo pide. */
+  async mute(userId: string, conversationId: string, duration: ChatMuteDuration, now = new Date()): Promise<ConversationDto> {
+    await this.requireMembership(userId, conversationId);
+    const until = duration === 'off' ? null : duration === 'always' ? MUTED_FOREVER : new Date(now.getTime() + MUTE_MS[duration]);
+    await this.conversations.setMutedUntil(conversationId, userId, until);
+    return this.get(userId, conversationId);
+  }
+
   async listMessages(userId: string, conversationId: string, limit: number, before?: string): Promise<MessageDto[]> {
     await this.requireMembership(userId, conversationId);
     const rows = await this.conversations.listMessages(conversationId, limit, before ? new Date(before) : undefined);
@@ -166,7 +184,7 @@ export class ChatsService {
     await this.requireCanSend(userId, conversationId);
     const encrypted = this.crypto.encryptText(body, conversationId);
     const row = await this.conversations.insertMessage(conversationId, userId, encrypted);
-    return this.publish(this.toMessageDto(row, null));
+    return this.publish(this.toMessageDto(row, null), true);
   }
 
   /** Envía un archivo (imagen, documento, nota de voz o video) con un epígrafe opcional. */
@@ -185,7 +203,7 @@ export class ChatsService {
     await this.requireCanSend(userId, conversationId);
     if ('code' in input) {
       const row = await this.conversations.insertMessage(conversationId, userId, this.crypto.encryptText('', conversationId), input.code);
-      return this.publish(this.toMessageDto(row, null));
+      return this.publish(this.toMessageDto(row, null), true);
     }
     const image = await this.stickers.readOwned(userId, input.stickerId);
     const processed: ProcessedMedia = { data: image, mimeType: 'image/webp', name: null, width: STICKER_SIZE, height: STICKER_SIZE, durationMs: null };
@@ -223,7 +241,7 @@ export class ChatsService {
           durationMs: processed.durationMs,
         },
       );
-      return this.publish(this.toMessageDto(message, attachment));
+      return this.publish(this.toMessageDto(message, attachment), true);
     } catch (error) {
       await this.deleteBlobs([storageKey]);
       throw error;
@@ -239,15 +257,35 @@ export class ChatsService {
     return this.publish(this.toMessageDto(row, null, call));
   }
 
-  /** Entrega el mensaje en tiempo real a todos los miembros. */
-  private async publish(dto: MessageDto): Promise<MessageDto> {
+  /**
+   * Entrega el mensaje en tiempo real a todos los miembros y, si `notify`, manda un aviso push
+   * a quienes no silenciaron el chat (nunca a quien lo envió). Los registros de llamadas no avisan:
+   * la llamada ya tiene sus propias notificaciones.
+   */
+  private async publish(dto: MessageDto, notify = false): Promise<MessageDto> {
     const members = await this.conversations.getMembers([dto.conversationId]);
     this.realtime.toUsers(
       members.map((member) => member.user.id),
       'chat:message',
       dto,
     );
+    if (notify) void this.notifyMessage(dto, members);
     return dto;
+  }
+
+  /** El aviso NO incluye el mensaje: solo quién escribió (o el nombre del grupo). El contenido se ve al abrir la app. */
+  private async notifyMessage(dto: MessageDto, members: MemberWithUser[]): Promise<void> {
+    const sender = members.find((member) => member.user.id === dto.senderId)?.user;
+    const conversation = await this.conversations.findById(dto.conversationId);
+    if (!sender || !conversation) return;
+    const now = new Date();
+    const recipients = members.filter((member) => member.user.id !== dto.senderId && !isMuted(member.mutedUntil, now)).map((member) => member.user.id);
+    const group = conversation.type === 'group';
+    await this.push.notify(
+      recipients,
+      { type: 'message', conversationId: dto.conversationId, title: group ? (conversation.title ?? 'Grupo') : sender.displayName, group },
+      { ttl: MESSAGE_PUSH_TTL_SECONDS, urgency: 'normal', topic: `m${dto.conversationId.replace(/-/g, '').slice(0, 31)}` },
+    );
   }
 
   private async deleteBlobs(keys: string[]): Promise<void> {
@@ -323,6 +361,7 @@ export class ChatsService {
         })),
         lastMessage: last ?? null,
         blockedByMe: row.type === 'direct' && rowMembers.some((member) => blockedByMe.has(member.user.id)),
+        mutedUntil: mutedUntilFor(rowMembers, viewerId),
       };
     });
   }
@@ -354,6 +393,11 @@ export class ChatsService {
       createdAt: row.createdAt.toISOString(),
     };
   }
+}
+
+function mutedUntilFor(members: MemberWithUser[], viewerId: string): string | null {
+  const mutedUntil = members.find((member) => member.user.id === viewerId)?.mutedUntil ?? null;
+  return mutedUntil && isMuted(mutedUntil) ? mutedUntil.toISOString() : null;
 }
 
 function toCallSummary(call: CallRow): CallSummaryDto {

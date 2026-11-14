@@ -119,3 +119,6 @@ export const CALL_PARTICIPANT_STATES = ['invited', 'joined', 'left', 'declined']
 export const CALL_RING_SECONDS = 45;
 /** Duración máxima de una llamada (horas): después se corta sola. */
 export const CALL_MAX_HOURS = 4;
+
+/** Silenciar un chat: lista cerrada de duraciones ("off" vuelve a activar las notificaciones). */
+export const CHAT_MUTE_DURATIONS = ['off', '8h', '1w', 'always'] as const;

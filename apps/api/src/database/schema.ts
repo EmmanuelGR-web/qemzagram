@@ -126,6 +126,8 @@ export const conversationMembers = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     role: memberRoleEnum('role').notNull().default('member'),
     joinedAt: ts('joined_at').notNull().defaultNow(),
+    /** Chat silenciado hasta esta fecha (sin notificaciones de mensajes). Null = con notificaciones. */
+    mutedUntil: ts('muted_until'),
   },
   (table) => [
     primaryKey({ columns: [table.conversationId, table.userId] }),
