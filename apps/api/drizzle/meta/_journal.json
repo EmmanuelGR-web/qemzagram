@@ -64,6 +64,13 @@
       "when": 1794619131342,
       "tag": "0008_bloqueos",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794619683985,
+      "tag": "0009_personas_cercanas",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidNearbyCell } from './nearby';
 import {
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
@@ -209,3 +210,14 @@ export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
 
 /** Se bloquea por id (en "personas cercanas" el tag no se ve hasta aceptar un saludo). */
 export const blockUserSchema = z.object({ userId: z.string().uuid() }).strict();
+
+/* ---------- Fase 5: personas cercanas ---------- */
+
+/** Solo se acepta una CELDA de la grilla (~1 km), nunca coordenadas. */
+export const nearbyCellSchema = z
+  .object({ row: z.number().int(), col: z.number().int() })
+  .strict()
+  .refine(isValidNearbyCell, 'Ubicación inválida');
+
+/** Activar (o renovar) la visibilidad: exige el consentimiento explícito en cada pedido. */
+export const nearbyPresenceSchema = z.object({ cell: nearbyCellSchema, consent: z.literal(true) }).strict();

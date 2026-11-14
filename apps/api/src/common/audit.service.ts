@@ -18,7 +18,9 @@ export type AuditAction =
   | 'profile.updated'
   | 'upload.malware_blocked'
   | 'user.blocked'
-  | 'user.unblocked';
+  | 'user.unblocked'
+  | 'nearby.enabled'
+  | 'nearby.disabled';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

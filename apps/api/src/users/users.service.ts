@@ -7,6 +7,7 @@ import { toLimitedUser, toPublicUser, toSelfUser } from '../common/mappers';
 import { ContactsRepository } from '../database/repositories/contacts.repository';
 import { SessionsRepository } from '../database/repositories/sessions.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import { NearbyService } from '../nearby/nearby.service';
 import { PushService } from '../notifications/push.service';
 import { StatusesService } from '../statuses/statuses.service';
 import type { ImageKind } from '../storage/storage.service';
@@ -24,6 +25,7 @@ export class UsersService {
     private readonly statuses: StatusesService,
     private readonly push: PushService,
     private readonly blocks: BlocksService,
+    private readonly nearby: NearbyService,
   ) {}
 
   async getMe(userId: string): Promise<SelfUser> {
@@ -77,6 +79,8 @@ export class UsersService {
     await this.assertPassword(userId, password);
     await this.users.update(userId, { status: 'paused' });
     await this.sessions.revokeAllForUser(userId);
+    // Al pausar, deja de aparecer en "Personas cercanas" y se borra su zona.
+    await this.nearby.hide(userId);
     await this.audit.log('account.paused', { userId });
   }
 
@@ -104,6 +108,7 @@ export class UsersService {
     await this.statuses.removeAllFor(userId);
     await this.push.removeAllFor(userId);
     await this.blocks.removeAllFor(userId);
+    await this.nearby.removeAllFor(userId);
     await this.audit.log('account.deleted', { userId });
   }
 

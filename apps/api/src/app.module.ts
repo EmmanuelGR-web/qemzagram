@@ -15,6 +15,7 @@ import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health/health.controller';
 import { MailModule } from './mail/mail.module';
 import { MediaModule } from './media/media.module';
+import { NearbyModule } from './nearby/nearby.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { StatusesModule } from './statuses/statuses.module';
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     ContactsModule,
     BlocksModule,
+    NearbyModule,
     MediaModule,
     StickersModule,
     ChatsModule,

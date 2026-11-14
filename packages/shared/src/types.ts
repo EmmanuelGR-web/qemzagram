@@ -1,4 +1,5 @@
 import type { ATTACHMENT_KINDS, CALL_END_REASONS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { NearbyDistance } from './nearby';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
 
@@ -231,4 +232,28 @@ export interface ServerToClientEvents {
   'call:incoming': (call: CallDto) => void;
   /** Cambió el estado de una llamada en la que participás (alguien atendió, cortó, terminó…). */
   'call:updated': (call: CallDto) => void;
+}
+
+/* ---------- Fase 5: personas cercanas ---------- */
+
+/** Mi visibilidad en "Personas cercanas". Nunca incluye la ubicación. */
+export interface NearbyStatusDto {
+  visible: boolean;
+  /** Hasta cuándo sigo visible (se apaga sola). */
+  visibleUntil: string | null;
+  /** Cambios de zona que me quedan hoy (límite anti-rastreo). */
+  changesLeft: number;
+}
+
+/** Lo único que se ve de alguien cercano: sin tag, sin bio, sin portada (hasta conectar). */
+export interface NearbyUserDto {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface NearbyPersonDto {
+  user: NearbyUserDto;
+  /** Rango de distancia; nunca el número exacto. */
+  distance: NearbyDistance;
 }

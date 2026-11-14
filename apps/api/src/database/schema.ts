@@ -344,6 +344,28 @@ export const userBlocks = pgTable(
   (table) => [primaryKey({ columns: [table.blockerId, table.blockedId] }), index('user_blocks_blocked_idx').on(table.blockedId)],
 );
 
+/**
+ * "Personas cercanas" (opt-in). Solo se guarda la CELDA de ~1 km (fila/columna de la grilla),
+ * nunca coordenadas. `cellRow/cellCol` en null = invisible (al apagarla se borra la celda).
+ * Los contadores limitan los cambios de zona (anti-rastreo) y se conservan al apagar.
+ */
+export const nearbyPresence = pgTable(
+  'nearby_presence',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    cellRow: integer('cell_row'),
+    cellCol: integer('cell_col'),
+    visibleUntil: ts('visible_until'),
+    cellChangedAt: ts('cell_changed_at'),
+    changesWindowStart: ts('changes_window_start'),
+    changesCount: integer('changes_count').notNull().default(0),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (table) => [index('nearby_presence_cell_idx').on(table.cellRow, table.cellCol), index('nearby_presence_until_idx').on(table.visibleUntil)],
+);
+
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
 export const auditLog = pgTable(
   'audit_log',
@@ -373,3 +395,4 @@ export type CallRow = typeof calls.$inferSelect;
 export type CallParticipantRow = typeof callParticipants.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type UserBlockRow = typeof userBlocks.$inferSelect;
+export type NearbyPresenceRow = typeof nearbyPresence.$inferSelect;
