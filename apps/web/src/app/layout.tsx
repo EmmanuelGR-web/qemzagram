@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 import { AuthProvider } from '@/lib/auth-context';
 import { PreferencesProvider } from '@/lib/preferences';
@@ -18,7 +19,12 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/**
+ * Async + `connection()`: todas las páginas se renderizan en cada pedido. Es obligatorio para el CSP con
+ * nonce: una página estática se genera al compilar, sin nonce, y el navegador bloquearía sus scripts.
+ */
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  await connection();
   return (
     <html lang="es" data-theme="system" data-font="md" data-chatbg="soft">
       <body>

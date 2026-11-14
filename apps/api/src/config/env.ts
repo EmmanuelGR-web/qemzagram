@@ -44,6 +44,8 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/, 'Clave VAPID pública inválida').optional(),
   VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,50}$/, 'Clave VAPID privada inválida').optional(),
   /** Contacto para los servicios de push (mailto: o https:). */
+  /** Redis compartido (redis:// o rediss://) para límites de peticiones y desafíos anti-bots entre varias instancias. */
+  REDIS_URL: z.string().regex(/^rediss?:\/\//, 'Usá redis:// o rediss://').optional(),
   /** Prueba de trabajo anti-bots en registro, login, recuperación y apelación. Obligatoria en producción. */
   POW_ENABLED: z.enum(['true', 'false']).default('true'),
   /** Bits en cero exigidos (cada +1 duplica el trabajo). 16 ≈ 65.000 intentos ≈ 1 s en un celular. */

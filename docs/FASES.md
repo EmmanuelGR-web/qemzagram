@@ -44,10 +44,20 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ **Reseteo de contraseña asistido:** soporte verifica la identidad por otro canal y manda el enlace **al correo registrado** (nunca ve ni elige la contraseña).
 - ✅ **Rol de soporte solo por consola** (`npm run support:grant -- @tag`): ninguna ruta web puede dar roles.
 
-## Fase 7 — Cifrado de extremo a extremo y endurecimiento
-- **E2EE real** (Signal / MLS): ni el servidor ni el soporte pueden leer los mensajes. Implica manejo de claves por dispositivo, grupos y copias de seguridad cifradas.
-- 2FA (TOTP / llaves de seguridad), CAPTCHA, CSP con nonce, Redis para límites compartidos, ClamAV, WAF.
-- **Prueba de penetración externa.**
+## Fase 7 — Endurecimiento y cifrado de extremo a extremo
+
+### ✅ 7A — Endurecimiento
+- ✅ **Verificación en dos pasos** con app autenticadora (TOTP estándar, RFC 6238) y **10 códigos de respaldo** de un solo uso. Login en dos pasos con ticket de 5 minutos en cookie HttpOnly; los códigos fallidos cuentan para el mismo bloqueo que las contraseñas. **Obligatoria para las cuentas de soporte.**
+- ✅ **Llaves de acceso (passkeys / WebAuthn)** como segundo factor: huella, cara, PIN del dispositivo o llave física. Atadas al dominio (no sirven en sitios falsos), con detección de llaves clonadas.
+- ✅ **Prueba de trabajo anti-bots propia** (sin terceros) en registro, login, recuperación, reenvío de verificación y apelación. Obligatoria en producción.
+- ✅ **Límites de peticiones compartidos** detrás del puerto `KeyValueStore`: memoria con una instancia, **Redis** (`REDIS_URL`) con varias.
+- ✅ **CSP con nonce** para los scripts (`'strict-dynamic'`, sin `'unsafe-inline'` ni `'unsafe-eval'` en producción). Los estilos siguen con `'unsafe-inline'` (ver `SEGURIDAD.md` §2.6).
+- ✅ ClamAV ya era obligatorio en producción desde la Fase 2.
+- ⏭️ **WAF** y **prueba de penetración externa**: se contratan al desplegar (no son código del repositorio).
+
+### 🔜 7B — Cifrado de extremo a extremo (E2EE)
+- Primitivas estándar de WebCrypto (ECDH P-256 + HKDF + AES-GCM): una clave por dispositivo y una clave por mensaje, envuelta para cada dispositivo de los miembros. Ni el servidor ni soporte podrán leer los mensajes.
+- Decisiones pendientes: denuncias (el dispositivo de quien denuncia aporta el contenido con una prueba de autenticidad), adjuntos (el servidor ya no puede escanearlos ni quitarles metadatos: pasa al dispositivo), historial en dispositivos nuevos (copia de seguridad cifrada de las claves) y llamadas E2EE en LiveKit.
 
 ## Despliegue y operación (en paralelo)
 - Integración continua (tests + `npm audit` en cada cambio), Dependabot.

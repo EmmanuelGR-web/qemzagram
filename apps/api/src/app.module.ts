@@ -18,6 +18,7 @@ import { MediaModule } from './media/media.module';
 import { NearbyModule } from './nearby/nearby.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { CaptchaModule } from './captcha/captcha.module';
+import { KvThrottlerStorage } from './kv/kv-throttler.storage';
 import { KvModule } from './kv/kv.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReportsModule } from './reports/reports.module';
@@ -37,8 +38,10 @@ import { UsersModule } from './users/users.module';
     KvModule,
     CaptchaModule,
     ThrottlerModule.forRootAsync({
-      inject: [ENV],
-      useFactory: (env: AppEnv) => ({
+      inject: [ENV, KvThrottlerStorage],
+      useFactory: (env: AppEnv, storage: KvThrottlerStorage) => ({
+        // Contadores en el almacén compartido (Redis si hay REDIS_URL): el límite vale entre instancias.
+        storage,
         // Límite general por IP; cada ruta sensible define uno más estricto con @Throttle.
         throttlers: [{ ttl: 60_000, limit: 120 }],
         skipIf: () => env.NODE_ENV === 'test',

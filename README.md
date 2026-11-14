@@ -3,7 +3,7 @@
 > **Conectá. Compartí. Disfrutá.**
 > Red social de mensajería **sin número de teléfono**: cada persona se identifica con un **tag** (`@tuusuario`), un correo verificado y una contraseña segura.
 
-Este repositorio contiene las **Fases 1 a 6** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real), el contenido multimedia (fotos, videos, notas de voz, documentos y stickers) los estados de 24 horas, las llamadas y videollamadas, personas cercanas con bloqueo de usuarios, y denuncias con un panel de soporte que nunca accede a las conversaciones. Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
+Este repositorio contiene las **Fases 1 a 6 y la 7A** del proyecto: la base segura (cuentas, perfil, agenda, chats y grupos en tiempo real), el contenido multimedia (fotos, videos, notas de voz, documentos y stickers) los estados de 24 horas, las llamadas y videollamadas, personas cercanas con bloqueo de usuarios, y denuncias con un panel de soporte que nunca accede a las conversaciones. Las funciones restantes están planificadas en [`docs/FASES.md`](docs/FASES.md).
 
 ---
 
@@ -28,9 +28,10 @@ Este repositorio contiene las **Fases 1 a 6** del proyecto: la base segura (cuen
 | **Fase 4:** **llamadas y videollamadas** 1 a 1 y en grupo (hasta 10) con LiveKit, registro en el chat y **notificaciones push** | ✅ |
 | **Fase 5:** **bloqueo de usuarios** y **personas cercanas** (opt-in de 1 h, zona aproximada de ~1 km, saludos que conectan las agendas) | ✅ |
 | **Fase 6:** **silenciar chats** y avisos de mensajes, **denuncias** con evidencia elegida, **panel de soporte** (sin acceso a chats), bajas con apelación y reseteo de contraseña asistido | ✅ |
-| Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7 |
+| **Fase 7A:** **verificación en dos pasos** (app autenticadora, códigos de respaldo y **llaves de acceso**), **anti-bots** propio, límites compartidos con Redis y **CSP con nonce** | ✅ |
+| Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7B |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 134 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 154 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 
@@ -95,6 +96,7 @@ Abrí **http://localhost:3000** en el navegador.
 8. **Personas cercanas:** en las dos cuentas entrá a **Cercanos** y tocá **Hacerme visible** (el navegador pide permiso de ubicación). Saludá desde una cuenta y aceptá desde la otra: quedan en la agenda del otro. Probá **Bloquear** desde un perfil y desbloqueá en **Ajustes → Personas bloqueadas**.
 9. **Silenciar y denunciar:** en un chat tocá la campanita para silenciarlo. Tocá el nombre del chat → **Denunciar** a la otra persona y elegí qué mensajes adjuntar (también desde un perfil o un estado).
 10. **Panel de soporte:** frená la API (si usás `setup:sin-docker`), corré `npm run support:grant -- @tu_tag`, volvé a iniciarla y entrá a **Menú → Panel de soporte**. Ahí ves la denuncia con la evidencia, podés confirmarla o descartarla, buscar cuentas y ver estadísticas. Con 3 denuncias confirmadas de personas distintas la cuenta se da de baja; desde **/apelar** se puede pedir la revisión.
+11. **Verificación en dos pasos:** en **Ajustes → Seguridad** tocá **Activar**, escaneá el QR con Google Authenticator o Authy y guardá los códigos de respaldo. Cerrá sesión y volvé a entrar: después de la contraseña te pide el código. Con **Agregar** en "Llaves de acceso" podés usar la huella o el PIN de tu dispositivo (funciona en `localhost`; desde otra dirección hace falta HTTPS). Al iniciar sesión vas a notar 1–2 segundos de "verificación anti-bots": es la prueba de trabajo.
 
 > Desde el celular (misma red Wi-Fi): abrí `http://IP-DE-TU-PC:3000`. Ojo: fuera de `localhost` los navegadores solo dan acceso a la **ubicación**, la cámara y el micrófono con **HTTPS**, así que "Cercanos" y las llamadas desde el celular necesitan HTTPS (ver sección 8).
 
@@ -106,7 +108,7 @@ Abrí **http://localhost:3000** en el navegador.
 |---|---|
 | `npm run dev:api` / `npm run dev:web` | Inicia API / web en modo desarrollo |
 | `npm test` | Ejecuta las **pruebas automáticas** (seguridad, perfil, agenda, chats, multimedia, estados, llamadas, bloqueos, cercanos, denuncias, soporte) |
-| `npm run support:grant -- @tag` / `support:revoke -- @tag` / `support:list` | Da, quita o lista el rol de soporte (solo por consola; con PGlite frená la API antes) |
+| `npm run support:grant -- @tag` / `support:revoke -- @tag` / `support:list` | Da, quita o lista el rol de soporte (solo por consola; con PGlite frená la API antes). La cuenta de soporte necesita 2FA para usar el panel |
 | `npm run typecheck` | Revisa los tipos de TypeScript en API y web |
 | `npm run build` | Compila todo para producción |
 | `npm run audit` | Busca vulnerabilidades conocidas en dependencias |
@@ -136,6 +138,9 @@ qemzagram/
 │  │  │  ├─ nearby/           ← personas cercanas (celdas de 1 km) y saludos
 │  │  │  ├─ reports/          ← denuncias con evidencia (copia cifrada)
 │  │  │  ├─ support/          ← panel de soporte, bajas, apelaciones y comando de roles
+│  │  │  ├─ mfa/              ← verificación en dos pasos (TOTP, códigos de respaldo, llaves de acceso)
+│  │  │  ├─ captcha/          ← prueba de trabajo anti-bots
+│  │  │  ├─ kv/               ← almacén compartido (memoria o Redis) para límites y anti-bots
 │  │  │  ├─ realtime/         ← entrega en tiempo real (WebSocket)
 │  │  │  ├─ mail/             ← envío de correos (puerto + implementación SMTP)
 │  │  │  ├─ storage/          ← procesamiento seguro de imágenes
@@ -167,6 +172,7 @@ Más detalle y los principios SOLID aplicados: [`docs/ARQUITECTURA.md`](docs/ARQ
 - Registro de auditoría de eventos sensibles; sin contraseñas ni mensajes en los logs.
 - **Personas cercanas** solo con opt-in de 1 hora: la ubicación exacta nunca sale del celular (se envía una zona de ~1 km), distancias por rangos y límites contra el rastreo. **Bloqueo total** de usuarios.
 - **Soporte sin acceso a conversaciones:** solo ve la evidencia que elige quien denuncia (copiada y cifrada), estadísticas agregadas y fichas con el correo enmascarado. Los roles se dan solo por consola.
+- **Endurecimiento:** verificación en dos pasos (TOTP, códigos de respaldo y llaves de acceso), anti-bots por prueba de trabajo, límites compartidos con Redis y CSP con nonce para los scripts.
 
 Detalle completo, límites y pendientes legales: [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md).
 

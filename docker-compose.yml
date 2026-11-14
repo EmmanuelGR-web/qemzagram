@@ -28,6 +28,16 @@ services:
       - '127.0.0.1:1025:1025' # SMTP
       - '127.0.0.1:8025:8025' # bandeja web
 
+  # Opcional (Fase 7A): límites de peticiones y desafíos anti-bots compartidos entre instancias.
+  # Para usarlo, agregá REDIS_URL=redis://localhost:6379 a apps/api/.env.
+  redis:
+    image: redis:7.4-alpine
+    container_name: qemzagram-redis
+    restart: unless-stopped
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports:
+      - '127.0.0.1:6379:6379' # solo accesible desde tu propia PC
+
   # Servidor de llamadas y videollamadas (SFU). Modo desarrollo: credenciales públicas devkey/secret,
   # por eso SOLO escucha en tu propia PC (127.0.0.1). Nunca uses --dev en producción.
   livekit:

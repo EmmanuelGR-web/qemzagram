@@ -131,6 +131,37 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - No hay todavía roles de soporte con distintos permisos (por ejemplo "moderación" vs. "administración"), ni doble aprobación para las bajas.
 - La verificación de identidad para el reseteo asistido es un **procedimiento humano** que tenés que definir por escrito (qué datos se piden).
 
+## 2.6 Endurecimiento: 2FA, llaves de acceso, anti-bots, límites compartidos y CSP (Fase 7A)
+
+**Verificación en dos pasos (TOTP):**
+- Algoritmo estándar (RFC 6238/4226, HMAC-SHA1, 6 dígitos, 30 s), verificado con los vectores oficiales de los RFC. Tolerancia de ±30 s por relojes corridos.
+- El secreto se guarda **cifrado** (AES-256-GCM, AAD `totp:<id>`). El mismo código **no sirve dos veces** (se guarda el último paso usado, con actualización atómica en la base).
+- **10 códigos de respaldo** de un solo uso, guardados solo como **HMAC con clave del servidor** (con un SHA-256 simple, una copia robada de la base permitiría probar todas las combinaciones de 40 bits).
+- Login en dos pasos: tras la contraseña **no hay sesión**, solo un ticket JWT de 5 minutos en una cookie `HttpOnly`/`SameSite=Strict` limitada a `/auth`. Los códigos fallidos suman al **mismo bloqueo** que las contraseñas (5 intentos → 15 minutos): adivinar 6 dígitos no es viable.
+- Activar exige contraseña + un primer código; desactivar o regenerar códigos exige **contraseña y un código vigente**. Cada cambio avisa por correo.
+- **Soporte:** sin segundo factor, el panel responde `403 MFA_REQUIRED` (y los archivos de evidencia, "no encontrado").
+
+**Llaves de acceso (WebAuthn):**
+- Librería estándar `@simplewebauthn/server` 13.x. Solo se guarda la **clave pública**; la privada nunca sale del dispositivo. Sin attestation (no se piden datos del fabricante).
+- La llave queda **atada al dominio** (rpID y origen verificados): una página falsa no puede usarla, a diferencia de un código TOTP que se puede tipear en un sitio de phishing.
+- Desafío **de un solo uso**, cifrado y con 5 minutos de vida. El **contador** detecta llaves clonadas. Las respuestas del navegador se validan con un esquema Zod estricto antes de verificar la firma.
+- Si es el primer segundo factor se entregan códigos de respaldo. Quitar la última llave (sin TOTP) desactiva el 2FA y borra esos códigos.
+- Los tests usan un **autenticador por software** con claves P-256 reales, para ejercitar la verificación verdadera de la librería.
+
+**Anti-bots (prueba de trabajo propia):**
+- El servidor emite un desafío **firmado con HMAC** (propósito, dificultad, vencimiento de 5 minutos, valor al azar) sin guardar nada. El navegador busca un número tal que SHA-256 del desafío tenga N bits en cero (16 por defecto: ~1 s). La solución se recuerda hasta que vence: **no sirve dos veces**, ni para otro propósito, ni con la dificultad alterada.
+- Aplica a registro, login, recuperación, reenvío de verificación y apelación. **En producción la API no arranca** sin ella (o con dificultad menor a 12).
+- SHA-256 del navegador implementado en `packages/shared` (FIPS 180-4) para funcionar también sin HTTPS; los tests lo comparan contra el de Node y los vectores del NIST.
+- **Límite honesto:** frena bots masivos y baratos, no a un atacante decidido con mucha capacidad de cómputo. Para eso están los límites por IP, el bloqueo por cuenta y (al desplegar) un WAF.
+
+**Límites de peticiones compartidos:** el throttler guarda sus contadores en `KeyValueStore`. Sin `REDIS_URL`, en memoria (cada instancia cuenta aparte, con aviso en producción); con `REDIS_URL`, en **Redis** con un script Lua atómico y prefijo `qz:`. El adaptador de Redis **no se probó contra un Redis real** en los tests automáticos (se puede levantar con `npm run db:up`).
+
+**CSP con nonce (web):**
+- `src/proxy.ts` genera un nonce de 128 bits **por respuesta**. `script-src 'self' 'nonce-…' 'strict-dynamic'`: un script inyectado no tiene el nonce y no corre. Sin `'unsafe-eval'` en producción. `worker-src 'self'` explícito para el service worker.
+- Verificado compilando y sirviendo la web: en `/login`, `/registro` y `/apelar` los **19 scripts** llevan el nonce correcto y cambia en cada respuesta.
+- Costo: todas las páginas se renderizan en cada pedido (no hay HTML estático cacheable).
+- **Límite honesto:** `style-src` sigue con `'unsafe-inline'` porque la interfaz usa atributos `style`. Sacarlo requiere mover esos estilos a clases y probarlo en un navegador.
+
 ## 3. Cómo funciona la recuperación de contraseña
 
 - **Por correo:** `¿Olvidé mi contraseña?` → enlace de un solo uso, válido 1 hora → nueva contraseña (con la misma política) → todas las sesiones se cierran.
@@ -141,10 +172,11 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | Tema | Situación | Plan |
 |---|---|---|
 | **Cifrado de extremo a extremo (E2EE)** | Hoy los mensajes están cifrados **en la base de datos** con una clave del servidor. Eso protege ante un robo de la base, pero **el servidor técnicamente podría descifrarlos**. Que "el soporte no pueda leerlos" hoy se cumple porque **no existe ninguna función ni endpoint** que lo permita, no por criptografía. | Fase 7: E2EE real (protocolo Signal/MLS) donde ni el servidor puede leer. Es un proyecto grande, con impacto en grupos, multi-dispositivo y copias de seguridad. |
-| Verificación en dos pasos (2FA/TOTP) | No | Fase de endurecimiento |
-| CAPTCHA / anti-bots en registro | No (solo límites de peticiones) | Fase de endurecimiento |
-| Límite de peticiones compartido entre servidores | Es en memoria (1 instancia) | Redis al escalar |
-| CSP estricta con *nonce* en la web | Usa `'unsafe-inline'` por requisito de Next.js sin nonces | Middleware con nonce |
+| 2FA obligatorio para todas las cuentas | ✅ Opcional (TOTP, códigos de respaldo y llaves de acceso); obligatorio para soporte | Evaluar al lanzar |
+| CAPTCHA más fuerte (Turnstile/hCaptcha) | ✅ Prueba de trabajo propia (§2.6) | Solo si aparecen bots sofisticados |
+| Límite de peticiones compartido entre servidores | ✅ Redis con `REDIS_URL` (adaptador sin probar contra un Redis real en los tests) | Probar con el Redis del despliegue |
+| CSP estricta en estilos | Scripts con nonce ✅; estilos con `'unsafe-inline'` | Pasar los atributos `style` a clases |
+| WAF (firewall de aplicación) | No (es del hosting) | Al desplegar |
 | Análisis antivirus de archivos adjuntos | ✅ Cliente ClamAV implementado y obligatorio en producción. En desarrollo puede quedar desactivado (aviso en consola) | Instalar `clamd` en el servidor |
 | Almacenamiento externo de archivos (S3/R2) | Disco local cifrado detrás del puerto `BlobStorage` | Adaptador S3/R2 al elegir proveedor |
 | Servidor de llamadas en producción | LiveKit en Docker solo para desarrollo | LiveKit propio (wss, credenciales propias, puertos UDP) o LiveKit Cloud |
@@ -179,7 +211,8 @@ Esto es **orientación general, no asesoramiento legal**:
 - [ ] Secretos en un gestor; plan de rotación de claves
 - [ ] Almacenamiento externo para fotos y archivos (adaptador S3/R2 de `BlobStorage`)
 - [ ] ClamAV (`clamd`) y ffmpeg instalados en el servidor, con firmas antivirus actualizadas
-- [ ] 2FA y CAPTCHA activados
+- [ ] 2FA activado en todas las cuentas de soporte; `POW_ENABLED=true` y `REDIS_URL` si hay más de una instancia
+- [ ] WAF delante de la web y la API
 - [ ] Términos, Privacidad y procedimiento de denuncias publicados
 - [ ] Registro de la base de datos ante la AAIP (si corresponde)
 - [ ] Monitoreo, alertas y plan de respuesta a incidentes

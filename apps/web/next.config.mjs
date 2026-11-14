@@ -1,24 +1,5 @@
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
-const isDev = process.env.NODE_ENV !== 'production';
-/** Servidor de llamadas (LiveKit). El navegador se conecta directo con un token de vida corta que da la API. */
-const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL ?? 'ws://localhost:7880';
-
-// Política de seguridad de contenido (CSP). 'unsafe-inline' en script/style lo exige Next.js sin nonces;
-// en la Fase de endurecimiento se migra a CSP con nonce (ver docs/SEGURIDAD.md).
-const csp = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "media-src 'self' blob:",
-  `connect-src 'self' ${WS_URL} ${WS_URL.replace(/^http/, 'ws')} ${LIVEKIT_URL} ${LIVEKIT_URL.replace(/^ws/, 'http')}${isDev ? ' ws://localhost:3000' : ''}`,
-  "font-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ');
+// La política de seguridad de contenido (CSP) con nonce la arma `src/proxy.ts` en cada respuesta (Fase 7A).
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -38,7 +19,6 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: csp },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

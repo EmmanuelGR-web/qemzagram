@@ -102,6 +102,20 @@ roles      ─► npm run support:grant -- @tag ─► support-role.cli.ts (sin 
 reloj      ─► SupportCleanupService (cada 6 h): borra la evidencia de denuncias resueltas hace más de 180 días
 ```
 
+## Endurecimiento (Fase 7A)
+
+```
+login       ─► POST /auth/login (PowGuard: anti-bots) ─► ¿contraseña OK? ─► ¿tiene 2FA?
+                 no ─► sesión (cookies qz_at / qz_rt)
+                 sí ─► cookie qz_mfa (ticket 5 min, SIN sesión) ─► POST /auth/mfa/verify
+                        totp/backup ─► MfaService   ·   passkey ─► POST /auth/mfa/passkey/options ─► PasskeysService
+2FA         ─► /auth/mfa/* (con sesión) ─► MfaService (TOTP + códigos) / PasskeysService (WebAuthn)
+anti-bots   ─► GET /auth/pow?purpose=… ─► desafío firmado ─► el navegador lo resuelve (shared/pow.ts)
+               ─► cabecera x-qz-pow ─► PowGuard ─► PowService (firma, propósito, vencimiento, un solo uso en KeyValueStore)
+límites     ─► ThrottlerGuard ─► KvThrottlerStorage ─► KeyValueStore (memoria | Redis)
+CSP         ─► web: src/proxy.ts genera el nonce por respuesta ─► Next lo pone en sus <script>
+```
+
 ## Cómo se aplica SOLID
 
 - **S — Responsabilidad única:** cada clase hace una cosa (`CryptoService` cifra, `AuditService` audita, `StorageService` procesa imágenes, `TokensService` firma tokens).
@@ -121,7 +135,7 @@ reloj      ─► SupportCleanupService (cada 6 h): borra la evidencia de denunc
 
 | Tabla | Para qué |
 |---|---|
-| `users` | Cuenta: correo único, tag único, hash de contraseña, perfil, estado (`active`/`paused`/`banned`/`deleted`), rol (`user`/`support`), bloqueos |
+| `users` | Cuenta: correo único, tag único, hash de contraseña, perfil, estado (`active`/`paused`/`banned`/`deleted`), rol (`user`/`support`), bloqueos, 2FA (`mfa_enabled`, secreto TOTP **cifrado**, último paso usado) y desafío WebAuthn vigente (**cifrado**, 5 min) |
 | `email_tokens` | Enlaces de verificación y de recuperación (solo hash, un uso, vencen) |
 | `sessions` | Refresh tokens rotativos (solo hash), con detección de reutilización |
 | `contacts` | Agenda: quién agregó a quién |
@@ -138,6 +152,8 @@ reloj      ─► SupportCleanupService (cada 6 h): borra la evidencia de denunc
 | `reports` | Denuncias: quién, a quién, motivo, descripción **cifrada**, estado (pendiente/confirmada/descartada) y quién la resolvió. Una pendiente por pareja (índice único parcial) |
 | `report_evidence` | **Copia cifrada** de los mensajes o estados que eligió quien denunció (texto, sticker y archivo con clave propia) |
 | `appeals` | Apelaciones de cuentas dadas de baja: mensaje **cifrado**, estado y quién la resolvió. Una pendiente por cuenta |
+| `mfa_backup_codes` | Códigos de respaldo del 2FA: solo su **HMAC** con clave del servidor, de un solo uso |
+| `passkeys` | Llaves de acceso: id de la credencial, **clave pública**, contador anti-clonado, transportes y nombre |
 | `push_subscriptions` | Dispositivos con notificaciones: dirección y claves **cifradas**, hash de la dirección para no duplicar |
 | `status_views` | Quién vio cada estado (solo lo consulta el dueño; se borra con el estado) |
 | `audit_log` | Eventos de seguridad (incluye archivos bloqueados por el antivirus) |
