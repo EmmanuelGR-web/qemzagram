@@ -99,7 +99,8 @@ describe('Personas cercanas', () => {
     expect(people.find((person) => person.user.id === carla.id)?.distance).toBe('5to10');
     // Sin tag, sin bio, sin correo, sin portada y sin ninguna coordenada.
     for (const person of people) {
-      expect(Object.keys(person).sort()).toEqual(['distance', 'user']);
+      expect(Object.keys(person).sort()).toEqual(['distance', 'greeting', 'greetingId', 'tag', 'user']);
+      expect(person).toMatchObject({ greeting: 'none', greetingId: null, tag: null }); // desconocidos: sin tag
       expect(Object.keys(person.user).sort()).toEqual(['avatarUrl', 'displayName', 'id']);
     }
     expect(ids(await nearbyOf(eva))).not.toContain(ana.id); // el bloqueo vale en las dos direcciones
