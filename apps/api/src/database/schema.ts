@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { REPORT_EVIDENCE_SOURCES, REPORT_REASONS, REPORT_STATUSES } from '@qemzagram/shared';
+import { APPEAL_STATUSES, REPORT_EVIDENCE_SOURCES, REPORT_REASONS, REPORT_STATUSES } from '@qemzagram/shared';
 import {
   boolean,
   index,
@@ -34,6 +34,7 @@ export const statusAudienceListEnum = pgEnum('status_audience_list', ['except', 
 export const reportReasonEnum = pgEnum('report_reason', REPORT_REASONS);
 export const reportStatusEnum = pgEnum('report_status', REPORT_STATUSES);
 export const reportEvidenceSourceEnum = pgEnum('report_evidence_source', REPORT_EVIDENCE_SOURCES);
+export const appealStatusEnum = pgEnum('appeal_status', APPEAL_STATUSES);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -462,6 +463,31 @@ export const reportEvidence = pgTable(
   (table) => [index('report_evidence_report_idx').on(table.reportId)],
 );
 
+/**
+ * Apelaciones de cuentas dadas de baja. El mensaje va CIFRADO (AAD = "appeal:<id>").
+ * Una sola apelación pendiente por cuenta.
+ */
+export const appeals = pgTable(
+  'appeals',
+  {
+    id: uuid('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    messageEncrypted: text('message_encrypted').notNull(),
+    status: appealStatusEnum('status').notNull().default('pending'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: ts('reviewed_at'),
+    reviewNoteEncrypted: text('review_note_encrypted'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('appeals_status_created_idx').on(table.status, table.createdAt),
+    index('appeals_user_idx').on(table.userId),
+    uniqueIndex('appeals_one_pending_idx').on(table.userId).where(sql`${table.status} = 'pending'`),
+  ],
+);
+
 export const auditLog = pgTable(
   'audit_log',
   {
@@ -495,3 +521,4 @@ export type NearbyGreetingRow = typeof nearbyGreetings.$inferSelect;
 export type ReportRow = typeof reports.$inferSelect;
 export type ReportEvidenceRow = typeof reportEvidence.$inferSelect;
 export type NewReportEvidenceRow = typeof reportEvidence.$inferInsert;
+export type AppealRow = typeof appeals.$inferSelect;

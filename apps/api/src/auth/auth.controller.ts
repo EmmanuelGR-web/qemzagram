@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
+  appealSchema,
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
@@ -10,6 +11,7 @@ import {
   type RegisterInput,
   type ResetPasswordInput,
   type SelfUser,
+  type AppealInput,
 } from '@qemzagram/shared';
 import type { CookieOptions, Request, Response } from 'express';
 import { clientMeta, CurrentUser, Public, type AuthUser } from '../common/decorators';
@@ -91,6 +93,16 @@ export class AuthController {
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
     await this.auth.logout(this.readCookie(request, REFRESH_COOKIE));
     this.clearCookies(response);
+  }
+
+  /** Apelación de una cuenta dada de baja (pública: esa cuenta no puede iniciar sesión). */
+  @Public()
+  @Post('appeal')
+  @HttpCode(202)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async appeal(@Body(new ZodPipe(appealSchema)) body: AppealInput, @Req() request: Request) {
+    await this.auth.appeal(body, clientMeta(request));
+    return { message: 'Recibimos tu apelación. Soporte la va a revisar y te vamos a avisar por correo.' };
   }
 
   @Public()

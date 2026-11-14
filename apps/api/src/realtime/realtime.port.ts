@@ -10,4 +10,7 @@ export abstract class RealtimePublisher {
     event: E,
     ...payload: Parameters<ServerToClientEvents[E]>
   ): void;
+
+  /** Corta las conexiones en tiempo real de esa persona (por ejemplo, al darla de baja). */
+  abstract disconnectUser(userId: string): void;
 }

@@ -21,7 +21,19 @@ export type AuditAction =
   | 'user.unblocked'
   | 'nearby.enabled'
   | 'nearby.disabled'
-  | 'report.created';
+  | 'report.created'
+  | 'report.confirmed'
+  | 'report.dismissed'
+  | 'user.banned'
+  | 'user.unbanned'
+  | 'appeal.created'
+  | 'appeal.accepted'
+  | 'appeal.rejected'
+  | 'support.report_viewed'
+  | 'support.user_lookup'
+  | 'support.password_reset'
+  | 'support.role_granted'
+  | 'support.role_revoked';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

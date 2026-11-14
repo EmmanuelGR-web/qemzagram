@@ -10,7 +10,8 @@
     "start:dev": "nest start --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "support": "tsc -p tsconfig.build.json && node dist/support/support-role.cli.js"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.0",

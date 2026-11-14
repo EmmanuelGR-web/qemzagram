@@ -24,7 +24,10 @@
     "setup": "node scripts/setup-env.mjs",
     "setup:sin-docker": "node scripts/setup-env.mjs --pglite",
     "start:api": "npm run start -w @qemzagram/api",
-    "start:web": "npm run start -w @qemzagram/web"
+    "start:web": "npm run start -w @qemzagram/web",
+    "support:grant": "npm run support -w @qemzagram/api -- grant",
+    "support:revoke": "npm run support -w @qemzagram/api -- revoke",
+    "support:list": "npm run support -w @qemzagram/api -- list"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

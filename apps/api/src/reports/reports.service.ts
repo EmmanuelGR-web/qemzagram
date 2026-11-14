@@ -10,12 +10,11 @@ import { ReportsRepository } from '../database/repositories/reports.repository';
 import { StatusesRepository } from '../database/repositories/statuses.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import type { NewReportEvidenceRow } from '../database/schema';
-import { MediaService } from '../media/media.service';
+import { evidenceAad, MediaService } from '../media/media.service';
 import { statusAad } from '../statuses/statuses.service';
 import { BlobStorage } from '../storage/blob-storage.port';
 
 export const reportAad = (reportId: string) => `report:${reportId}`;
-export const evidenceAad = (evidenceId: string) => `evidence:${evidenceId}`;
 
 const INVALID_EVIDENCE = {
   code: 'INVALID_EVIDENCE',

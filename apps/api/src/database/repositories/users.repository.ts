@@ -56,6 +56,18 @@ export class UsersRepository {
     return row;
   }
 
+  /**
+   * Cambia el rol. Método aparte (no está en UserPatch) para que ningún flujo web pueda tocarlo:
+   * solo lo usa el comando de consola `support:grant` / `support:revoke`.
+   */
+  async setRole(id: string, role: UserRow['role']): Promise<void> {
+    await this.db.update(users).set({ role }).where(eq(users.id, id));
+  }
+
+  async listByRole(role: UserRow['role']): Promise<UserRow[]> {
+    return this.db.select().from(users).where(eq(users.role, role));
+  }
+
   async update(id: string, patch: UserPatch): Promise<UserRow | undefined> {
     const [row] = await this.db
       .update(users)

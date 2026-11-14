@@ -46,4 +46,8 @@ export class RealtimeGateway extends RealtimePublisher implements OnGatewayConne
     if (!this.server || userIds.length === 0) return;
     this.server.to(userIds.map(userRoom)).emit(event as string, ...payload);
   }
+
+  disconnectUser(userId: string): void {
+    this.server?.in(userRoom(userId)).disconnectSockets(true);
+  }
 }

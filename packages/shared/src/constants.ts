@@ -147,3 +147,14 @@ export const REPORT_DESCRIPTION_MAX_LENGTH = 1000;
 export const REPORTS_PER_DAY = 10;
 /** Denuncias CONFIRMADAS por soporte, de personas distintas, que dan de baja una cuenta. */
 export const REPORTS_TO_BAN = 3;
+
+/** Apelaciones de una cuenta dada de baja: pendiente, aceptada (se reactiva) o rechazada. */
+export const APPEAL_STATUSES = ['pending', 'accepted', 'rejected'] as const;
+export const APPEAL_MESSAGE_MIN_LENGTH = 20;
+export const APPEAL_MESSAGE_MAX_LENGTH = 1000;
+/** Después de una apelación rechazada hay que esperar estos días para volver a apelar. */
+export const APPEAL_RETRY_DAYS = 30;
+/** Nota interna de soporte al resolver una denuncia o apelación. */
+export const SUPPORT_NOTE_MAX_LENGTH = 500;
+/** La evidencia de denuncias ya resueltas se borra pasado este plazo (minimización de datos). */
+export const REPORT_EVIDENCE_RETENTION_DAYS = 180;

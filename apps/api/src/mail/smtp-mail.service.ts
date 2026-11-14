@@ -5,6 +5,8 @@ import { MailPort } from './mail.port';
 import {
   accountExistsEmail,
   passwordChangedEmail,
+  accountBannedEmail,
+  appealResultEmail,
   passwordResetEmail,
   verificationEmail,
   type EmailContent,
@@ -43,6 +45,14 @@ export class SmtpMailService extends MailPort {
 
   sendPasswordChanged(to: string, displayName: string): Promise<void> {
     return this.deliver(to, passwordChangedEmail(displayName));
+  }
+
+  sendAccountBanned(to: string, displayName: string): Promise<void> {
+    return this.deliver(to, accountBannedEmail(displayName, `${this.env.WEB_ORIGIN}/apelar`));
+  }
+
+  sendAppealResult(to: string, displayName: string, accepted: boolean): Promise<void> {
+    return this.deliver(to, appealResultEmail(displayName, accepted, `${this.env.WEB_ORIGIN}/login`));
   }
 
   private async deliver(to: string, content: EmailContent, devLink?: string): Promise<void> {

@@ -7,4 +7,7 @@ export abstract class MailPort {
   abstract sendAccountAlreadyExists(to: string): Promise<void>;
   abstract sendPasswordReset(to: string, displayName: string, token: string): Promise<void>;
   abstract sendPasswordChanged(to: string, displayName: string): Promise<void>;
+  /** Aviso de baja por incumplir las normas, con cómo apelar. */
+  abstract sendAccountBanned(to: string, displayName: string): Promise<void>;
+  abstract sendAppealResult(to: string, displayName: string, accepted: boolean): Promise<void>;
 }

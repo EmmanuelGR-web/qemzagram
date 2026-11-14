@@ -24,6 +24,11 @@ import {
   REPORT_EVIDENCE_MAX,
   REPORT_EVIDENCE_SOURCES,
   REPORT_REASONS,
+  REPORT_STATUSES,
+  APPEAL_MESSAGE_MAX_LENGTH,
+  APPEAL_MESSAGE_MIN_LENGTH,
+  APPEAL_STATUSES,
+  SUPPORT_NOTE_MAX_LENGTH,
 } from './constants';
 import { getPasswordIssues, PASSWORD_ISSUE_MESSAGES } from './password';
 
@@ -253,3 +258,34 @@ export const createReportSchema = z
   })
   .strict();
 export type CreateReportInput = z.infer<typeof createReportSchema>;
+
+/* ---------- Fase 6: soporte y apelaciones ---------- */
+
+const supportNoteSchema = z.string().trim().max(SUPPORT_NOTE_MAX_LENGTH, `Máximo ${SUPPORT_NOTE_MAX_LENGTH} caracteres`).default('');
+
+export const resolveReportSchema = z.object({ decision: z.enum(['confirm', 'dismiss']), note: supportNoteSchema }).strict();
+export type ResolveReportInput = z.infer<typeof resolveReportSchema>;
+
+export const resolveAppealSchema = z.object({ decision: z.enum(['accept', 'reject']), note: supportNoteSchema }).strict();
+export type ResolveAppealInput = z.infer<typeof resolveAppealSchema>;
+
+export const supportReportsQuerySchema = z.object({ status: z.enum(REPORT_STATUSES).default('pending') }).strict();
+export const supportAppealsQuerySchema = z.object({ status: z.enum(APPEAL_STATUSES).default('pending') }).strict();
+export const supportUserLookupSchema = z.object({ tag: tagLookupSchema }).strict();
+
+/**
+ * Apelación de una cuenta dada de baja. Es PÚBLICA (la cuenta no puede iniciar sesión),
+ * por eso exige las mismas credenciales que el login: nadie puede apelar en nombre de otra persona.
+ */
+export const appealSchema = z
+  .object({
+    identifier: z.string().trim().toLowerCase().min(3).max(254),
+    password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+    message: z
+      .string()
+      .trim()
+      .min(APPEAL_MESSAGE_MIN_LENGTH, `Contanos al menos ${APPEAL_MESSAGE_MIN_LENGTH} caracteres`)
+      .max(APPEAL_MESSAGE_MAX_LENGTH, `Máximo ${APPEAL_MESSAGE_MAX_LENGTH} caracteres`),
+  })
+  .strict();
+export type AppealInput = z.infer<typeof appealSchema>;

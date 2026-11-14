@@ -5,7 +5,7 @@ import request from 'supertest';
 import { CryptoService } from '../src/common/crypto.service';
 import { ReportsRepository } from '../src/database/repositories/reports.repository';
 import { auditLog, reportEvidence, reports } from '../src/database/schema';
-import { evidenceAad } from '../src/reports/reports.service';
+import { evidenceAad } from '../src/media/media.service';
 import { BlobStorage } from '../src/storage/blob-storage.port';
 import { createTestApp, ORIGIN, signUp, type TestContext, type TestUser } from './support/test-app';
 

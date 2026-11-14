@@ -6,6 +6,8 @@ import { DB, DB_HANDLE, type Database, type DatabaseHandle } from './database.ty
 import { BlocksRepository } from './repositories/blocks.repository';
 import { GreetingsRepository } from './repositories/greetings.repository';
 import { ReportsRepository } from './repositories/reports.repository';
+import { AppealsRepository } from './repositories/appeals.repository';
+import { SupportStatsRepository } from './repositories/support-stats.repository';
 import { NearbyRepository } from './repositories/nearby.repository';
 import { AttachmentsRepository } from './repositories/attachments.repository';
 import { CallsRepository } from './repositories/calls.repository';
@@ -68,6 +70,8 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     NearbyRepository,
     GreetingsRepository,
     ReportsRepository,
+    AppealsRepository,
+    SupportStatsRepository,
   ],
   exports: [
     DB,
@@ -85,6 +89,8 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     NearbyRepository,
     GreetingsRepository,
     ReportsRepository,
+    AppealsRepository,
+    SupportStatsRepository,
   ],
 })
 export class DatabaseModule implements OnApplicationShutdown {

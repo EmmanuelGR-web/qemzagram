@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, REPORT_EVIDENCE_SOURCES, REPORT_STATUSES, ReportReason, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, REPORT_EVIDENCE_SOURCES, REPORT_STATUSES, ReportReason, APPEAL_STATUSES, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 import type { NearbyDistance, NearbyGreetingState } from './nearby';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
@@ -13,10 +13,14 @@ export interface PublicUser {
   isPrivate: boolean;
 }
 
+export type UserRole = 'user' | 'support';
+
 export interface SelfUser extends PublicUser {
   email: string;
   emailVerified: boolean;
   createdAt: string;
+  /** "support" habilita el panel de soporte (que NUNCA da acceso a conversaciones). */
+  role: UserRole;
 }
 
 export interface ContactDto {
@@ -307,4 +311,89 @@ export interface MyReportDto {
   reviewed: boolean;
   evidenceCount: number;
   createdAt: string;
+}
+
+/* ---------- Fase 6: panel de soporte ---------- */
+
+export type AppealStatus = (typeof APPEAL_STATUSES)[number];
+export type AccountStatus = 'active' | 'paused' | 'banned' | 'deleted';
+
+/** Lo mínimo que soporte necesita para identificar una cuenta. Nunca el correo completo. */
+export interface SupportUserRef {
+  id: string;
+  tag: string;
+  displayName: string;
+  status: AccountStatus;
+}
+
+export interface SupportReportDto {
+  id: string;
+  reason: ReportReason;
+  status: ReportStatus;
+  description: string;
+  evidenceCount: number;
+  reporter: SupportUserRef;
+  target: SupportUserRef & { confirmedReports: number };
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+/**
+ * Evidencia tal como la ve soporte: la COPIA que eligió quien denunció.
+ * `media.url` es firmada y además exige rol de soporte en cada descarga.
+ */
+export interface SupportEvidenceDto {
+  id: string;
+  source: ReportEvidenceSource;
+  kind: string;
+  body: string;
+  sticker: GeneralStickerCode | null;
+  media: { url: string; mimeType: string; width: number | null; height: number | null; durationMs: number | null } | null;
+  originalCreatedAt: string;
+}
+
+export interface SupportReportDetailDto extends SupportReportDto {
+  evidence: SupportEvidenceDto[];
+}
+
+export interface ResolveReportResultDto {
+  report: SupportReportDto;
+  /** La confirmación alcanzó el umbral y la cuenta quedó dada de baja. */
+  targetBanned: boolean;
+}
+
+export interface SupportAppealDto {
+  id: string;
+  user: SupportUserRef;
+  message: string;
+  status: AppealStatus;
+  confirmedReports: number;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+/** Ficha de una cuenta para soporte: estado y denuncias, nunca mensajes ni contactos. */
+export interface SupportUserDto extends SupportUserRef {
+  role: UserRole;
+  /** Correo enmascarado (j***@gmail.com) para verificar identidad sin exponerlo. */
+  emailMasked: string;
+  emailVerified: boolean;
+  createdAt: string;
+  reports: { pending: number; confirmed: number };
+}
+
+/** Estadísticas AGREGADAS (solo conteos): ningún dato de una persona en particular. */
+export interface SupportStatsDto {
+  users: { total: number; active: number; paused: number; banned: number; deleted: number; newLast7d: number; newLast30d: number };
+  activity: {
+    messagesLast24h: number;
+    messagesLast7d: number;
+    directChats: number;
+    groups: number;
+    activeStatuses: number;
+    callsLast7d: number;
+    nearbyVisibleNow: number;
+  };
+  moderation: { reportsPending: number; reportsConfirmed: number; reportsDismissed: number; appealsPending: number; bansLast30d: number };
+  generatedAt: string;
 }

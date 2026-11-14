@@ -70,3 +70,34 @@ export function passwordChangedEmail(displayName: string): EmailContent {
     html: layout('Contraseña actualizada', `<p>Hola <b>${name}</b>. Tu contraseña se cambió y cerramos todas tus sesiones abiertas. Si no fuiste vos, recuperá tu cuenta de inmediato o contactá a soporte.</p>`),
   };
 }
+
+export function accountBannedEmail(displayName: string, appealUrl: string): EmailContent {
+  const name = escapeHtml(displayName);
+  return {
+    subject: 'Tu cuenta de Qemzagram fue dada de baja',
+    text: `Hola ${displayName}. Después de revisar varias denuncias, el equipo de soporte dio de baja tu cuenta por incumplir las normas. Si creés que es un error, podés apelar acá: ${appealUrl}`,
+    html: layout(
+      'Tu cuenta fue dada de baja',
+      `<p>Hola <b>${name}</b>. Después de revisar varias denuncias, el equipo de soporte dio de baja tu cuenta por incumplir las normas de la comunidad. Cerramos todas tus sesiones.</p><p>Si creés que es un error, podés pedir una revisión. Vas a necesitar tu tag o correo y tu contraseña.</p>`,
+      { label: 'Apelar la decisión', url: appealUrl },
+    ),
+  };
+}
+
+export function appealResultEmail(displayName: string, accepted: boolean, loginUrl: string): EmailContent {
+  const name = escapeHtml(displayName);
+  return accepted
+    ? {
+        subject: 'Revisamos tu apelación: tu cuenta está activa',
+        text: `Hola ${displayName}. Revisamos tu apelación y reactivamos tu cuenta. Ya podés iniciar sesión: ${loginUrl}`,
+        html: layout('Tu cuenta está activa otra vez', `<p>Hola <b>${name}</b>. Revisamos tu apelación y reactivamos tu cuenta. Ya podés volver a iniciar sesión.</p>`, {
+          label: 'Iniciar sesión',
+          url: loginUrl,
+        }),
+      }
+    : {
+        subject: 'Revisamos tu apelación',
+        text: `Hola ${displayName}. Revisamos tu apelación y la baja de tu cuenta se mantiene.`,
+        html: layout('Revisamos tu apelación', `<p>Hola <b>${name}</b>. Revisamos tu apelación con atención y la baja de tu cuenta se mantiene.</p>`),
+      };
+}

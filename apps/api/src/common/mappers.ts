@@ -24,5 +24,6 @@ export function toSelfUser(user: UserRow): SelfUser {
     email: user.email,
     emailVerified: user.emailVerifiedAt !== null,
     createdAt: user.createdAt.toISOString(),
+    role: user.role,
   };
 }

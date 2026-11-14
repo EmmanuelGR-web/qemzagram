@@ -37,6 +37,19 @@ export class MediaController {
     sendBuffer(request, response, file, query.exp - Date.now() / 1000);
   }
 
+  /** Evidencia de denuncias: solo soporte (lo verifica MediaService con el rol leído de la base). */
+  @Get('r/:id')
+  async evidence(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query(new ZodPipe(signedQuerySchema)) query: SignedQuery,
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    const file = await this.media.getEvidenceForSupport(user, id, query.exp, query.sig);
+    sendBuffer(request, response, file, query.exp - Date.now() / 1000);
+  }
+
   @Get('s/:id')
   async sticker(
     @CurrentUser() user: AuthUser,

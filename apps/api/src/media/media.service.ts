@@ -3,6 +3,7 @@ import type { AttachmentDto, StickerDto } from '@qemzagram/shared';
 import { CryptoService } from '../common/crypto.service';
 import { AttachmentsRepository } from '../database/repositories/attachments.repository';
 import { ConversationsRepository } from '../database/repositories/conversations.repository';
+import { ReportsRepository } from '../database/repositories/reports.repository';
 import { StickersRepository } from '../database/repositories/stickers.repository';
 import type { AttachmentRow, StickerRow } from '../database/schema';
 import { BlobStorage } from '../storage/blob-storage.port';
@@ -18,6 +19,9 @@ export interface ServedFile {
 
 const NOT_FOUND = { code: 'MEDIA_NOT_FOUND', message: 'Archivo no encontrado' };
 
+/** AAD de los archivos copiados como evidencia de una denuncia. */
+export const evidenceAad = (evidenceId: string) => `evidence:${evidenceId}`;
+
 @Injectable()
 export class MediaService {
   constructor(
@@ -27,6 +31,7 @@ export class MediaService {
     private readonly storage: BlobStorage,
     private readonly crypto: CryptoService,
     private readonly urls: MediaUrlService,
+    private readonly reports: ReportsRepository,
   ) {}
 
   /** DTO de un adjunto con su URL firmada. El nombre original se descifra (va cifrado en la base). */
@@ -74,6 +79,23 @@ export class MediaService {
     const row = await this.stickers.findOwned(id, viewerId);
     if (!row) throw new NotFoundException(NOT_FOUND);
     return { data: await this.readBlob(row.storageKey, row.id), mimeType: 'image/webp', disposition: 'inline', fileName: 'sticker.webp' };
+  }
+
+  /**
+   * Archivo de evidencia de una denuncia: SOLO para el rol de soporte (el rol se lee de la base
+   * en cada petición). Para cualquier otra persona, "no encontrado".
+   */
+  async getEvidenceForSupport(viewer: { role: 'user' | 'support' }, id: string, exp: number, sig: string): Promise<ServedFile> {
+    if (viewer.role !== 'support' || !this.urls.verify('r', id, exp, sig)) throw new NotFoundException(NOT_FOUND);
+    const row = await this.reports.findEvidence(id);
+    if (!row?.storageKey || !row.mimeType) throw new NotFoundException(NOT_FOUND);
+    const isDocument = row.kind === 'file';
+    return {
+      data: await this.readBlob(row.storageKey, evidenceAad(row.id)),
+      mimeType: row.mimeType,
+      disposition: isDocument ? 'attachment' : 'inline',
+      fileName: `evidencia-${row.id.slice(0, 8)}`,
+    };
   }
 
   toStickerDto(row: StickerRow): StickerDto {

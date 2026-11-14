@@ -8,8 +8,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import {
+  APPEAL_RETRY_DAYS,
   getPasswordIssues,
   PASSWORD_ISSUE_MESSAGES,
+  type AppealInput,
   type LoginInput,
   type RegisterInput,
   type ResetPasswordInput,
@@ -20,9 +22,11 @@ import type { ClientMeta } from '../common/decorators';
 import { CryptoService } from '../common/crypto.service';
 import { toSelfUser } from '../common/mappers';
 import { isUniqueViolation } from '../database/database.types';
+import { AppealsRepository } from '../database/repositories/appeals.repository';
 import { EmailTokensRepository } from '../database/repositories/email-tokens.repository';
 import { SessionsRepository } from '../database/repositories/sessions.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
+import type { UserRow } from '../database/schema';
 import { MailPort } from '../mail/mail.port';
 import {
   LOCK_DURATION_MS,
@@ -31,6 +35,7 @@ import {
   RESET_TOKEN_TTL_MS,
   VERIFY_TOKEN_TTL_MS,
 } from './auth.constants';
+import { randomUUID } from 'node:crypto';
 import { TokensService } from './tokens.service';
 
 export interface AuthResult {
@@ -52,6 +57,7 @@ export class AuthService {
     private readonly tokens: TokensService,
     private readonly mail: MailPort,
     private readonly audit: AuditService,
+    private readonly appeals: AppealsRepository,
   ) {}
 
   /**
@@ -104,36 +110,7 @@ export class AuthService {
   }
 
   async login(input: LoginInput, meta: ClientMeta): Promise<AuthResult> {
-    // Un correo tiene texto antes y después de la "@"; "@maria" es un tag con arroba inicial.
-    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.identifier);
-    const user = looksLikeEmail
-      ? await this.users.findByEmail(input.identifier)
-      : await this.users.findByTag(input.identifier.replace(/^@/, ''));
-
-    if (!user || user.status === 'deleted') {
-      await this.crypto.verifyDummy(input.password); // mismo tiempo de respuesta que un usuario real
-      await this.audit.log('login.failed', { ip: meta.ip });
-      throw new UnauthorizedException(INVALID_CREDENTIALS);
-    }
-
-    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-      await this.audit.log('login.locked', { userId: user.id, ip: meta.ip });
-      throw new HttpException(
-        { code: 'ACCOUNT_LOCKED', message: 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.' },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    if (!(await this.crypto.verifyPassword(user.passwordHash, input.password))) {
-      const attempts = user.failedLogins + 1;
-      const shouldLock = attempts >= MAX_FAILED_LOGINS;
-      await this.users.update(user.id, {
-        failedLogins: shouldLock ? 0 : attempts,
-        lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
-      });
-      await this.audit.log('login.failed', { userId: user.id, ip: meta.ip, meta: { attempts } });
-      throw new UnauthorizedException(INVALID_CREDENTIALS);
-    }
+    const user = await this.checkCredentials(input.identifier, input.password, meta);
 
     // Estos chequeos van DESPUÉS de validar la contraseña: nadie ajeno aprende el estado de la cuenta.
     if (!user.emailVerifiedAt) {
@@ -147,6 +124,68 @@ export class AuthService {
     const active = await this.users.update(user.id, { status: 'active', failedLogins: 0, lockedUntil: null });
     await this.audit.log('login.success', { userId: user.id, ip: meta.ip });
     return this.buildSession(active ?? user, meta);
+  }
+
+  /**
+   * Apelación de una cuenta dada de baja. Pide las MISMAS credenciales que el login
+   * (con el mismo bloqueo por intentos fallidos y el mismo tiempo de respuesta), así que
+   * solo la dueña o el dueño de la cuenta puede apelar. El mensaje se guarda cifrado.
+   */
+  async appeal(input: AppealInput, meta: ClientMeta): Promise<void> {
+    const user = await this.checkCredentials(input.identifier, input.password, meta);
+    if (user.status !== 'banned') {
+      throw new ConflictException({ code: 'NOT_BANNED', message: 'Esta cuenta no está dada de baja: podés iniciar sesión normalmente' });
+    }
+    if (await this.appeals.hasPending(user.id)) {
+      throw new ConflictException({ code: 'APPEAL_ALREADY_OPEN', message: 'Ya enviaste una apelación: soporte la está revisando' });
+    }
+    const lastRejected = await this.appeals.lastRejectedAt(user.id);
+    if (lastRejected && Date.now() - lastRejected.getTime() < APPEAL_RETRY_DAYS * 24 * 60 * 60 * 1000) {
+      throw new HttpException(
+        { code: 'APPEAL_TOO_SOON', message: `Tu última apelación fue rechazada. Podés volver a apelar ${APPEAL_RETRY_DAYS} días después.` },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const id = randomUUID();
+    await this.appeals.create({ id, userId: user.id, messageEncrypted: this.crypto.encryptText(input.message, `appeal:${id}`) });
+    await this.users.update(user.id, { failedLogins: 0, lockedUntil: null });
+    await this.audit.log('appeal.created', { userId: user.id, ip: meta.ip, meta: { appealId: id } });
+  }
+
+  /**
+   * Verifica tag/correo + contraseña. Si fallan, responde SIEMPRE lo mismo (sin revelar si la cuenta
+   * existe), cuenta el intento y bloquea 15 minutos tras 5 fallos.
+   */
+  private async checkCredentials(identifier: string, password: string, meta: ClientMeta): Promise<UserRow> {
+    // Un correo tiene texto antes y después de la "@"; "@maria" es un tag con arroba inicial.
+    const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(identifier);
+    const user = looksLikeEmail ? await this.users.findByEmail(identifier) : await this.users.findByTag(identifier.replace(/^@/, ''));
+
+    if (!user || user.status === 'deleted') {
+      await this.crypto.verifyDummy(password); // mismo tiempo de respuesta que un usuario real
+      await this.audit.log('login.failed', { ip: meta.ip });
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
+
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      await this.audit.log('login.locked', { userId: user.id, ip: meta.ip });
+      throw new HttpException(
+        { code: 'ACCOUNT_LOCKED', message: 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    if (!(await this.crypto.verifyPassword(user.passwordHash, password))) {
+      const attempts = user.failedLogins + 1;
+      const shouldLock = attempts >= MAX_FAILED_LOGINS;
+      await this.users.update(user.id, {
+        failedLogins: shouldLock ? 0 : attempts,
+        lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
+      });
+      await this.audit.log('login.failed', { userId: user.id, ip: meta.ip, meta: { attempts } });
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
+    return user;
   }
 
   async refresh(refreshToken: string | undefined, meta: ClientMeta): Promise<AuthResult> {
@@ -191,10 +230,17 @@ export class AuthService {
   async forgotPassword(email: string, meta: ClientMeta): Promise<void> {
     const user = await this.users.findByEmail(email);
     if (!user || !user.emailVerifiedAt || user.status === 'banned' || user.status === 'deleted') return;
+    await this.issuePasswordReset(user);
+    await this.audit.log('password.reset_requested', { userId: user.id, ip: meta.ip });
+  }
 
+  /**
+   * Manda el enlace para elegir contraseña nueva al correo REGISTRADO de la cuenta.
+   * Lo usa también soporte (reseteo asistido): soporte nunca ve ni elige la contraseña.
+   */
+  async issuePasswordReset(user: UserRow): Promise<void> {
     const token = this.crypto.randomToken();
     await this.emailTokens.issue(user.id, 'reset', this.crypto.sha256(token), new Date(Date.now() + RESET_TOKEN_TTL_MS));
-    await this.audit.log('password.reset_requested', { userId: user.id, ip: meta.ip });
     await this.mail.sendPasswordReset(user.email, user.displayName, token);
   }
 

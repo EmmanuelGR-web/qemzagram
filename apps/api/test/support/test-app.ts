@@ -25,6 +25,8 @@ export class FakeMail extends MailPort {
   resets: { to: string; token: string }[] = [];
   accountExists: string[] = [];
   passwordChanged: string[] = [];
+  banned: string[] = [];
+  appealResults: { to: string; accepted: boolean }[] = [];
 
   async sendVerification(to: string, _name: string, token: string): Promise<void> {
     this.verifications.push({ to, token });
@@ -37,6 +39,12 @@ export class FakeMail extends MailPort {
   }
   async sendPasswordChanged(to: string): Promise<void> {
     this.passwordChanged.push(to);
+  }
+  async sendAccountBanned(to: string): Promise<void> {
+    this.banned.push(to);
+  }
+  async sendAppealResult(to: string, _name: string, accepted: boolean): Promise<void> {
+    this.appealResults.push({ to, accepted });
   }
   lastVerification(to: string): string {
     const found = [...this.verifications].reverse().find((item) => item.to === to);
