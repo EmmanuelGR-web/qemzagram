@@ -326,6 +326,24 @@ export const pushSubscriptions = pgTable(
   (table) => [index('push_subscriptions_user_idx').on(table.userId, table.createdAt)],
 );
 
+/**
+ * Bloqueos: `blockerId` bloqueó a `blockedId`. Se aplica en las DOS direcciones
+ * (ninguno puede escribirle, llamarle, ver estados ni encontrar al otro en "personas cercanas").
+ */
+export const userBlocks = pgTable(
+  'user_blocks',
+  {
+    blockerId: uuid('blocker_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    blockedId: uuid('blocked_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.blockerId, table.blockedId] }), index('user_blocks_blocked_idx').on(table.blockedId)],
+);
+
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
 export const auditLog = pgTable(
   'audit_log',
@@ -354,3 +372,4 @@ export type NewStatusRow = typeof statuses.$inferInsert;
 export type CallRow = typeof calls.$inferSelect;
 export type CallParticipantRow = typeof callParticipants.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+export type UserBlockRow = typeof userBlocks.$inferSelect;

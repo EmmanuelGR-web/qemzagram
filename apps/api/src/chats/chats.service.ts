@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   GROUP_MAX_MEMBERS,
   type ConversationDto,
@@ -11,6 +11,7 @@ import {
   STICKER_SIZE,
 } from '@qemzagram/shared';
 import { randomUUID } from 'node:crypto';
+import { BlocksService, USER_NOT_FOUND } from '../blocks/blocks.service';
 import { CryptoService } from '../common/crypto.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
 import { AttachmentsRepository } from '../database/repositories/attachments.repository';
@@ -27,6 +28,8 @@ import { BlobStorage } from '../storage/blob-storage.port';
 
 const NOT_FOUND = { code: 'CHAT_NOT_FOUND', message: 'No encontramos esa conversación' };
 const UNAVAILABLE_BODY = '[Mensaje no disponible]';
+/** Mismo aviso para las dos personas: no se revela quién bloqueó a quién. */
+export const CHAT_BLOCKED = { code: 'CHAT_BLOCKED', message: 'No podés enviar mensajes ni llamar en este chat' };
 
 @Injectable()
 export class ChatsService {
@@ -44,17 +47,18 @@ export class ChatsService {
     private readonly storage: BlobStorage,
     private readonly stickers: StickersService,
     private readonly calls: CallsRepository,
+    private readonly blocks: BlocksService,
   ) {}
 
   async list(userId: string): Promise<ConversationDto[]> {
     const rows = await this.conversations.listForUser(userId);
-    const dtos = await this.toDtos(rows);
+    const dtos = await this.toDtos(rows, userId);
     return dtos.sort((a, b) => (b.lastMessage?.createdAt ?? b.createdAt).localeCompare(a.lastMessage?.createdAt ?? a.createdAt));
   }
 
   async get(userId: string, conversationId: string): Promise<ConversationDto> {
     const conversation = await this.requireMembership(userId, conversationId);
-    const [dto] = await this.toDtos([conversation]);
+    const [dto] = await this.toDtos([conversation], userId);
     if (!dto) throw new NotFoundException(NOT_FOUND);
     return dto;
   }
@@ -68,7 +72,7 @@ export class ChatsService {
     if (existing) return this.get(userId, existing.id);
 
     const created = await this.conversations.createDirect(userId, directKey, [userId, target.id]);
-    const [dto] = await this.toDtos([created]);
+    const [dto] = await this.toDtos([created], userId);
     if (!dto) throw new NotFoundException(NOT_FOUND);
     this.realtime.toUsers([target.id], 'chat:created', dto);
     return dto;
@@ -86,13 +90,14 @@ export class ChatsService {
       if (!(await this.contacts.exists(userId, member.id))) {
         throw new BadRequestException({ code: 'NOT_IN_CONTACTS', message: `@${member.tag} no está en tu agenda` });
       }
+      await this.blocks.assertCanReach(userId, member);
     }
     if (active.length + 1 > GROUP_MAX_MEMBERS) {
       throw new BadRequestException({ code: 'GROUP_FULL', message: `Un grupo admite hasta ${GROUP_MAX_MEMBERS} miembros` });
     }
 
     const created = await this.conversations.createGroup(userId, input.title, [userId, ...active.map((member) => member.id)]);
-    const [dto] = await this.toDtos([created]);
+    const [dto] = await this.toDtos([created], userId);
     if (!dto) throw new NotFoundException(NOT_FOUND);
     this.realtime.toUsers(
       active.map((member) => member.id),
@@ -158,7 +163,7 @@ export class ChatsService {
   }
 
   async sendMessage(userId: string, conversationId: string, body: string): Promise<MessageDto> {
-    await this.requireMembership(userId, conversationId);
+    await this.requireCanSend(userId, conversationId);
     const encrypted = this.crypto.encryptText(body, conversationId);
     const row = await this.conversations.insertMessage(conversationId, userId, encrypted);
     return this.publish(this.toMessageDto(row, null));
@@ -166,7 +171,7 @@ export class ChatsService {
 
   /** Envía un archivo (imagen, documento, nota de voz o video) con un epígrafe opcional. */
   async sendAttachment(userId: string, conversationId: string, input: SendAttachmentInput, file: UploadedInput): Promise<MessageDto> {
-    await this.requireMembership(userId, conversationId);
+    await this.requireCanSend(userId, conversationId);
     const processed = await this.processor.process(input.kind, file, userId);
     return this.storeAndPublish(userId, conversationId, input.kind, processed, input.caption.trim());
   }
@@ -177,7 +182,7 @@ export class ChatsService {
    * y borrarlo después de "Mis stickers" no rompe los mensajes ya enviados.
    */
   async sendSticker(userId: string, conversationId: string, input: SendStickerInput): Promise<MessageDto> {
-    await this.requireMembership(userId, conversationId);
+    await this.requireCanSend(userId, conversationId);
     if ('code' in input) {
       const row = await this.conversations.insertMessage(conversationId, userId, this.crypto.encryptText('', conversationId), input.code);
       return this.publish(this.toMessageDto(row, null));
@@ -262,19 +267,40 @@ export class ChatsService {
     return conversation;
   }
 
+  /**
+   * Miembro + (en chats 1 a 1) sin bloqueo entre las dos personas.
+   * En grupos el bloqueo no impide escribir: el grupo es de todos sus miembros.
+   */
+  async requireCanSend(userId: string, conversationId: string): Promise<ConversationRow> {
+    const conversation = await this.requireMembership(userId, conversationId);
+    if (conversation.type === 'direct') {
+      const members = await this.conversations.getMembers([conversationId]);
+      const other = members.find((member) => member.user.id !== userId);
+      if (other && (await this.blocks.isBlockedEither(userId, other.user.id))) throw new ForbiddenException(CHAT_BLOCKED);
+    }
+    return conversation;
+  }
+
   private async requireContact(userId: string, tag: string): Promise<UserRow> {
     const target = await this.users.findByTag(tag);
-    if (!target || target.status !== 'active') throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'No encontramos ese tag' });
+    if (!target || target.status !== 'active') throw new NotFoundException(USER_NOT_FOUND);
     if (target.id === userId) throw new BadRequestException({ code: 'CANNOT_ADD_SELF', message: 'No podés chatear con vos mismo' });
+    await this.blocks.assertCanReach(userId, target);
     if (!(await this.contacts.exists(userId, target.id))) {
       throw new BadRequestException({ code: 'NOT_IN_CONTACTS', message: 'Primero agregá a esta persona a tu agenda' });
     }
     return target;
   }
 
-  private async toDtos(rows: ConversationRow[]): Promise<ConversationDto[]> {
+  /**
+   * `viewerId`: quien recibe el DTO. Quien lo bloqueó se ve con perfil reducido,
+   * y en chats 1 a 1 se indica si el viewer bloqueó a la otra persona.
+   */
+  private async toDtos(rows: ConversationRow[], viewerId: string): Promise<ConversationDto[]> {
     const ids = rows.map((row) => row.id);
     const [members, lastMessages] = await Promise.all([this.conversations.getMembers(ids), this.conversations.lastMessages(ids)]);
+    const otherIds = [...new Set(members.map((member) => member.user.id).filter((id) => id !== viewerId))];
+    const [blockedByMe, blockers] = await Promise.all([this.blocks.blockedByMeAmong(viewerId, otherIds), this.blocks.blockersAmong(viewerId, otherIds)]);
     const membersByConversation = new Map<string, MemberWithUser[]>();
     for (const member of members) {
       membersByConversation.set(member.conversationId, [...(membersByConversation.get(member.conversationId) ?? []), member]);
@@ -285,16 +311,18 @@ export class ChatsService {
 
     return rows.map((row) => {
       const last = lastByConversation.get(row.id);
+      const rowMembers = membersByConversation.get(row.id) ?? [];
       return {
         id: row.id,
         type: row.type,
         title: row.title,
         createdAt: row.createdAt.toISOString(),
-        members: (membersByConversation.get(row.id) ?? []).map((member) => ({
+        members: rowMembers.map((member) => ({
           role: member.role,
-          user: member.user.isPrivate ? toLimitedUser(member.user) : toPublicUser(member.user),
+          user: member.user.isPrivate || blockers.has(member.user.id) ? toLimitedUser(member.user) : toPublicUser(member.user),
         })),
         lastMessage: last ?? null,
+        blockedByMe: row.type === 'direct' && rowMembers.some((member) => blockedByMe.has(member.user.id)),
       };
     });
   }

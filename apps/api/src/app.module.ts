@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { BlocksModule } from './blocks/blocks.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CallsModule } from './calls/calls.module';
 import { ChatsModule } from './chats/chats.module';
@@ -39,6 +40,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     UsersModule,
     ContactsModule,
+    BlocksModule,
     MediaModule,
     StickersModule,
     ChatsModule,

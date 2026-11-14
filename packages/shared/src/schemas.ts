@@ -204,3 +204,8 @@ export type CreateMediaStatusInput = z.infer<typeof createMediaStatusSchema>;
 export type UpdateStatusPrivacyInput = z.infer<typeof updateStatusPrivacySchema>;
 export type StartCallInput = z.infer<typeof startCallSchema>;
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
+
+/* ---------- Fase 5: bloqueos ---------- */
+
+/** Se bloquea por id (en "personas cercanas" el tag no se ve hasta aceptar un saludo). */
+export const blockUserSchema = z.object({ userId: z.string().uuid() }).strict();

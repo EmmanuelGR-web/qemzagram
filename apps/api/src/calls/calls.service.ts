@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { CALL_MAX_HOURS, CALL_RING_SECONDS, type CallDto, type CallJoinDto, type CallKind, type PushPayload } from '@qemzagram/shared';
+import { BlocksService } from '../blocks/blocks.service';
 import { ChatsService } from '../chats/chats.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
 import { CallsRepository, type ParticipantWithUser } from '../database/repositories/calls.repository';
@@ -33,15 +34,20 @@ export class CallsService {
     private readonly realtime: RealtimePublisher,
     private readonly chats: ChatsService,
     private readonly push: PushService,
+    private readonly blocks: BlocksService,
   ) {}
 
   /** Inicia una llamada en un chat y devuelve el acceso a la sala para quien llama. */
   async start(userId: string, conversationId: string, kind: CallKind): Promise<CallJoinDto> {
-    const conversation = await this.requireMembership(userId, conversationId);
+    // En chats 1 a 1 con bloqueo no se puede llamar (mismo error que al escribir).
+    const conversation = await this.chats.requireCanSend(userId, conversationId);
     this.assertAvailable();
 
     const members = await this.conversations.getMembers([conversationId]);
-    const invited = members.filter((member) => member.user.id !== userId && member.user.status === 'active').map((member) => member.user.id);
+    const candidates = members.filter((member) => member.user.id !== userId && member.user.status === 'active').map((member) => member.user.id);
+    // En grupos, a quien tiene un bloqueo con quien llama no le suena (ni se entera).
+    const blocked = await this.blocks.blockedEitherAmong(userId, candidates);
+    const invited = candidates.filter((id) => !blocked.has(id));
     if (invited.length === 0) throw new BadRequestException({ code: 'NO_ONE_TO_CALL', message: 'No hay nadie a quien llamar en este chat' });
 
     const now = new Date();
@@ -61,6 +67,8 @@ export class CallsService {
   async join(userId: string, callId: string): Promise<CallJoinDto> {
     const { call, conversation } = await this.requireCall(userId, callId);
     if (call.status === 'ended') throw new ConflictException({ code: 'CALL_ENDED', message: 'La llamada ya terminó' });
+    // Si hubo un bloqueo mientras sonaba, en un chat 1 a 1 ya no se puede atender.
+    if (conversation.type === 'direct') await this.chats.requireCanSend(userId, conversation.id);
     this.assertAvailable();
 
     const now = new Date();

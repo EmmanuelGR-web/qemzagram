@@ -583,3 +583,7 @@ html[data-theme='dark'] .call-log[data-missed='true'] .call-log-icon { backgroun
 .privacy-option small { color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- Fase 5: bloqueo ---------- */
+.blocked-banner { border-top: 1px solid var(--red-100); border-bottom: 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }

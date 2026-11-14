@@ -11,6 +11,7 @@ import { BackIcon, GroupIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage, refreshSession } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { unblockUser } from '@/lib/blocks';
 import { useCalls } from '@/lib/call-context';
 import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
 import { useRealtimeEvent } from '@/lib/realtime-context';
@@ -85,6 +86,19 @@ export default function ConversationPage() {
   }
   if (!conversation) return <div className="chat-empty muted">Cargando conversación…</div>;
 
+  async function unblock(target: ConversationDto) {
+    const other = target.members.find((member) => member.user.id !== user?.id);
+    if (!other) return;
+    try {
+      await unblockUser(other.user.id);
+      const fresh = await api<ConversationDto>(`/chats/${target.id}`);
+      setConversation(fresh);
+      upsert(fresh);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }
+
   const info = describeConversation(conversation, user.id);
   const isGroup = conversation.type === 'group';
   const authors = new Map(conversation.members.map((member) => [member.user.id, member.user]));
@@ -103,10 +117,10 @@ export default function ConversationPage() {
           </span>
         </button>
         <div className="conversation-actions">
-          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'audio')} disabled={Boolean(calls.active || ongoing)} aria-label="Llamar" title="Llamar">
+          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'audio')} disabled={Boolean(calls.active || ongoing || conversation.blockedByMe)} aria-label="Llamar" title="Llamar">
             <PhoneIcon />
           </button>
-          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'video')} disabled={Boolean(calls.active || ongoing)} aria-label="Videollamada" title="Videollamada">
+          <button className="icon-btn" onClick={() => void calls.start(conversation.id, 'video')} disabled={Boolean(calls.active || ongoing || conversation.blockedByMe)} aria-label="Videollamada" title="Videollamada">
             <VideoIcon />
           </button>
         </div>
@@ -143,7 +157,20 @@ export default function ConversationPage() {
         <div ref={bottomRef} />
       </div>
 
-      <Composer conversationId={conversation.id} onSent={append} />
+      {conversation.blockedByMe ? (
+        <div className="call-banner blocked-banner">
+          <span className="call-banner-text">
+            <strong>Bloqueaste a este contacto</strong>
+            <small>No pueden escribirse ni llamarse hasta que lo desbloquees.</small>
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={() => void unblock(conversation)}>
+            Desbloquear
+          </button>
+        </div>
+      ) : (
+        <Composer conversationId={conversation.id} onSent={append} />
+      )}
+      {error && <p className="alert alert-error">{error}</p>}
 
       {showInfo && (
         <ConversationInfo

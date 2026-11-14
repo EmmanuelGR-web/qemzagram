@@ -36,6 +36,9 @@ export const GROUP_TITLE_MAX_LENGTH = 50;
 export const MESSAGE_MAX_LENGTH = 4000;
 export const CONTACTS_MAX = 500;
 
+/* ---------- Fase 5: bloqueos ---------- */
+export const BLOCKS_MAX = 1000;
+
 /* ---------- Fase 2: multimedia ---------- */
 
 /** Tipos de adjunto de un mensaje. */

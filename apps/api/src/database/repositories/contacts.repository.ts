@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq } from 'drizzle-orm';
 import { DB, type Database } from '../database.types';
+import { notBlockedBy } from './blocks.repository';
 import { contacts, users, type UserRow } from '../schema';
 
 export interface ContactWithUser {
@@ -13,12 +14,13 @@ export interface ContactWithUser {
 export class ContactsRepository {
   constructor(@Inject(DB) private readonly db: Database) {}
 
+  /** Agenda de `ownerId`. Quien lo bloqueó no aparece (para esa persona, "no existe"); nada se borra. */
   async listWithUsers(ownerId: string): Promise<ContactWithUser[]> {
     const rows = await this.db
       .select({ user: users, alias: contacts.alias, createdAt: contacts.createdAt })
       .from(contacts)
       .innerJoin(users, eq(users.id, contacts.contactId))
-      .where(and(eq(contacts.ownerId, ownerId), eq(users.status, 'active')))
+      .where(and(eq(contacts.ownerId, ownerId), eq(users.status, 'active'), notBlockedBy(contacts.contactId, ownerId)))
       .orderBy(desc(contacts.createdAt));
     return rows;
   }

@@ -16,7 +16,9 @@ export type AuditAction =
   | 'account.paused'
   | 'account.deleted'
   | 'profile.updated'
-  | 'upload.malware_blocked';
+  | 'upload.malware_blocked'
+  | 'user.blocked'
+  | 'user.unblocked';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

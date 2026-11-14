@@ -100,11 +100,11 @@ export default function ContactsPage() {
               <Avatar user={contact.user} size={48} />
               <span>
                 <strong>{contact.alias ?? contact.user.displayName}</strong>
-                <small>@{contact.user.tag}</small>
+                <small>@{contact.user.tag}{contact.blocked && ' · Bloqueado'}</small>
               </span>
             </Link>
             <div className="contact-actions">
-              <button className="btn btn-primary btn-sm" onClick={() => chat(contact)}>
+              <button className="btn btn-primary btn-sm" onClick={() => chat(contact)} disabled={contact.blocked}>
                 Chatear
               </button>
               <button className="btn btn-ghost btn-sm" onClick={() => remove(contact)}>

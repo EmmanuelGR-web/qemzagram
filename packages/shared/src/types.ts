@@ -22,6 +22,14 @@ export interface ContactDto {
   user: PublicUser;
   alias: string | null;
   addedAt: string;
+  /** Si VOS bloqueaste a esta persona (nunca se informa si ella te bloqueó). */
+  blocked: boolean;
+}
+
+/** Persona que bloqueaste (pantalla Ajustes → Bloqueados). */
+export interface BlockedUserDto {
+  user: PublicUser;
+  blockedAt: string;
 }
 
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
@@ -81,6 +89,8 @@ export interface ConversationDto {
   members: ConversationMemberDto[];
   lastMessage: MessageDto | null;
   createdAt: string;
+  /** Chat 1 a 1 con alguien que VOS bloqueaste: no se puede escribir ni llamar hasta desbloquear. */
+  blockedByMe: boolean;
 }
 
 export type StatusKind = (typeof STATUS_KINDS)[number];

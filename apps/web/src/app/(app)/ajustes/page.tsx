@@ -3,6 +3,7 @@
 import type { SelfUser, StatusPrivacyDto } from '@qemzagram/shared';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
+import { BlockedUsersDialog } from '@/components/BlockedUsersDialog';
 import { Modal } from '@/components/Modal';
 import { AUDIENCE_LABELS, StatusPrivacyDialog } from '@/components/status/StatusPrivacyDialog';
 import { disablePush, enablePush, getPushState, type PushState } from '@/lib/push';
@@ -68,6 +69,7 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState<'pause' | 'delete' | null>(null);
   const [statusPrivacy, setStatusPrivacy] = useState<StatusPrivacyDto | null>(null);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [blockedOpen, setBlockedOpen] = useState(false);
   const [pushState, setPushState] = useState<PushState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
 
@@ -186,6 +188,16 @@ export default function SettingsPage() {
             Cambiar
           </button>
         </div>
+        <div className="setting">
+          <div>
+            <strong>Personas bloqueadas</strong>
+            <small>No pueden escribirte, llamarte, agregarte ni ver tus estados. No se les avisa.</small>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setBlockedOpen(true)}>
+            Ver
+          </button>
+        </div>
+        {blockedOpen && <BlockedUsersDialog onClose={() => setBlockedOpen(false)} />}
         {privacyOpen && (
           <StatusPrivacyDialog
             onClose={() => setPrivacyOpen(false)}

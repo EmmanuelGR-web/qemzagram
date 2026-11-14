@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, count, desc, eq, exists, gt, inArray, lte, ne, not, or, sql, type SQL } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { DB, type Database } from '../database.types';
+import { noBlockBetween } from './blocks.repository';
 import { contacts, statusAudienceMembers, statuses, statusViews, users, type NewStatusRow, type StatusRow, type UserRow } from '../schema';
 
 export interface StatusWithOwner {
@@ -226,7 +227,7 @@ export class StatusesRepository {
       and(eq(users.statusAudience, 'except'), not(exists(this.inList('except', statuses.ownerId, sql`${viewerId}`)))),
       and(eq(users.statusAudience, 'only'), exists(this.inList('only', statuses.ownerId, sql`${viewerId}`))),
     );
-    const condition = and(eq(users.status, 'active'), exists(ownerAddedViewer), exists(viewerAddedOwner), audience);
+    const condition = and(eq(users.status, 'active'), exists(ownerAddedViewer), exists(viewerAddedOwner), noBlockBetween(viewerId, statuses.ownerId), audience);
     if (!condition) throw new Error('Condición de visibilidad vacía');
     return condition;
   }

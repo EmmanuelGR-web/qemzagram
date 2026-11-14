@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { PublicUser, SelfUser, UpdateProfileInput } from '@qemzagram/shared';
+import { BlocksService, USER_NOT_FOUND } from '../blocks/blocks.service';
 import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
 import { toLimitedUser, toPublicUser, toSelfUser } from '../common/mappers';
@@ -22,6 +23,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly statuses: StatusesService,
     private readonly push: PushService,
+    private readonly blocks: BlocksService,
   ) {}
 
   async getMe(userId: string): Promise<SelfUser> {
@@ -58,12 +60,14 @@ export class UsersService {
 
   /**
    * Perfil de otra persona. Si la cuenta es privada, quien no esté en su agenda
-   * solo ve el tag, el nombre y la foto de perfil.
+   * solo ve el tag, el nombre y la foto de perfil. Si esa persona te bloqueó, para vos "no existe".
    */
   async getPublicProfile(viewerId: string, tag: string): Promise<PublicUser> {
     const target = await this.users.findByTag(tag);
-    if (!target || target.status !== 'active') throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'No encontramos ese tag' });
-    if (!target.isPrivate || target.id === viewerId) return toPublicUser(target);
+    if (!target || target.status !== 'active') throw new NotFoundException(USER_NOT_FOUND);
+    if (target.id === viewerId) return toPublicUser(target);
+    if (await this.blocks.hasBlockedMe(viewerId, target.id)) throw new NotFoundException(USER_NOT_FOUND);
+    if (!target.isPrivate) return toPublicUser(target);
     const hasAddedViewer = await this.contacts.exists(target.id, viewerId);
     return hasAddedViewer ? toPublicUser(target) : toLimitedUser(target);
   }
@@ -99,6 +103,7 @@ export class UsersService {
     // Los estados (y sus archivos cifrados) se borran ya, sin esperar a que venzan.
     await this.statuses.removeAllFor(userId);
     await this.push.removeAllFor(userId);
+    await this.blocks.removeAllFor(userId);
     await this.audit.log('account.deleted', { userId });
   }
 
