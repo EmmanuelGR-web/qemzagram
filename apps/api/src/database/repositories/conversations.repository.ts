@@ -139,6 +139,11 @@ export class ConversationsRepository {
     return row;
   }
 
+  async findMessage(id: string): Promise<MessageRow | undefined> {
+    const [row] = await this.db.select().from(messages).where(eq(messages.id, id)).limit(1);
+    return row;
+  }
+
   async listMessages(conversationId: string, limit: number, before?: Date): Promise<MessageRow[]> {
     const rows = await this.db
       .select()

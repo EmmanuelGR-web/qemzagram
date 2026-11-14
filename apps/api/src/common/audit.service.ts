@@ -20,7 +20,8 @@ export type AuditAction =
   | 'user.blocked'
   | 'user.unblocked'
   | 'nearby.enabled'
-  | 'nearby.disabled';
+  | 'nearby.disabled'
+  | 'report.created';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

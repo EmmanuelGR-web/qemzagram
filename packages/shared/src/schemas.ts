@@ -20,6 +20,10 @@ import {
   TAG_MIN_LENGTH,
   TAG_REGEX,
   UPLOAD_KINDS,
+  REPORT_DESCRIPTION_MAX_LENGTH,
+  REPORT_EVIDENCE_MAX,
+  REPORT_EVIDENCE_SOURCES,
+  REPORT_REASONS,
 } from './constants';
 import { getPasswordIssues, PASSWORD_ISSUE_MESSAGES } from './password';
 
@@ -227,3 +231,25 @@ export const nearbyPresenceSchema = z.object({ cell: nearbyCellSchema, consent: 
 
 /** Saludar a alguien cercano (solo se acepta a quien aparece en tu lista de cercanos). */
 export const nearbyGreetSchema = z.object({ userId: z.string().uuid() }).strict();
+
+/* ---------- Fase 6: denuncias ---------- */
+
+const reportEvidenceSchema = z.object({ type: z.enum(REPORT_EVIDENCE_SOURCES), id: z.string().uuid() }).strict();
+
+/**
+ * Denuncia contra una persona. La evidencia son mensajes o estados QUE ELIGE quien denuncia:
+ * soporte ve solo esa copia, nunca la conversación.
+ */
+export const createReportSchema = z
+  .object({
+    userId: z.string().uuid(),
+    reason: z.enum(REPORT_REASONS, { message: 'Elegí un motivo' }),
+    description: z.string().trim().max(REPORT_DESCRIPTION_MAX_LENGTH, `Máximo ${REPORT_DESCRIPTION_MAX_LENGTH} caracteres`).default(''),
+    evidence: z
+      .array(reportEvidenceSchema)
+      .max(REPORT_EVIDENCE_MAX, `Podés adjuntar hasta ${REPORT_EVIDENCE_MAX} mensajes o estados`)
+      .refine((items) => new Set(items.map((item) => `${item.type}:${item.id}`)).size === items.length, 'Hay evidencia repetida')
+      .default([]),
+  })
+  .strict();
+export type CreateReportInput = z.infer<typeof createReportSchema>;

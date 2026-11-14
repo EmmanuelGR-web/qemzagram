@@ -122,3 +122,28 @@ export const CALL_MAX_HOURS = 4;
 
 /** Silenciar un chat: lista cerrada de duraciones ("off" vuelve a activar las notificaciones). */
 export const CHAT_MUTE_DURATIONS = ['off', '8h', '1w', 'always'] as const;
+
+/* ---------- Fase 6: denuncias y soporte ---------- */
+
+export const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'impersonation', 'other'] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  spam: 'Spam o estafa',
+  harassment: 'Acoso u hostigamiento',
+  hate: 'Discurso de odio',
+  sexual: 'Contenido sexual no deseado',
+  violence: 'Violencia o amenazas',
+  impersonation: 'Se hace pasar por otra persona',
+  other: 'Otro motivo',
+};
+/** Estados de una denuncia: pendiente de revisión, confirmada por soporte o descartada. */
+export const REPORT_STATUSES = ['pending', 'confirmed', 'dismissed'] as const;
+/** De dónde sale una evidencia: un mensaje de un chat o un estado. */
+export const REPORT_EVIDENCE_SOURCES = ['message', 'status'] as const;
+/** Mensajes o estados que se pueden adjuntar como evidencia en una denuncia. */
+export const REPORT_EVIDENCE_MAX = 10;
+export const REPORT_DESCRIPTION_MAX_LENGTH = 1000;
+/** Denuncias que una persona puede enviar por día. */
+export const REPORTS_PER_DAY = 10;
+/** Denuncias CONFIRMADAS por soporte, de personas distintas, que dan de baja una cuenta. */
+export const REPORTS_TO_BAN = 3;

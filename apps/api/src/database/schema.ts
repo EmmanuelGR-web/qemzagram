@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { REPORT_EVIDENCE_SOURCES, REPORT_REASONS, REPORT_STATUSES } from '@qemzagram/shared';
 import {
   boolean,
   index,
@@ -30,6 +31,9 @@ export const callEndReasonEnum = pgEnum('call_end_reason', ['completed', 'missed
 export const callParticipantStateEnum = pgEnum('call_participant_state', ['invited', 'joined', 'left', 'declined']);
 export const greetingStatusEnum = pgEnum('greeting_status', ['pending', 'accepted', 'declined']);
 export const statusAudienceListEnum = pgEnum('status_audience_list', ['except', 'only']);
+export const reportReasonEnum = pgEnum('report_reason', REPORT_REASONS);
+export const reportStatusEnum = pgEnum('report_status', REPORT_STATUSES);
+export const reportEvidenceSourceEnum = pgEnum('report_evidence_source', REPORT_EVIDENCE_SOURCES);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -395,6 +399,69 @@ export const nearbyGreetings = pgTable(
 );
 
 /** Registro de auditoría de seguridad (inicios de sesión, cambios de contraseña, etc.). */
+/**
+ * Denuncias. La descripción va CIFRADA (AAD = "report:<id>"). Quien denuncia nunca se revela
+ * a la persona denunciada. Una sola denuncia PENDIENTE por pareja (quien denuncia → denunciado).
+ */
+export const reports = pgTable(
+  'reports',
+  {
+    id: uuid('id').primaryKey(),
+    reporterId: uuid('reporter_id')
+      .notNull()
+      .references(() => users.id),
+    targetId: uuid('target_id')
+      .notNull()
+      .references(() => users.id),
+    reason: reportReasonEnum('reason').notNull(),
+    descriptionEncrypted: text('description_encrypted').notNull(),
+    status: reportStatusEnum('status').notNull().default('pending'),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    reviewedAt: ts('reviewed_at'),
+    /** Nota interna de soporte (cifrada, misma AAD que la descripción). */
+    reviewNoteEncrypted: text('review_note_encrypted'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('reports_status_created_idx').on(table.status, table.createdAt),
+    index('reports_target_status_idx').on(table.targetId, table.status),
+    index('reports_reporter_created_idx').on(table.reporterId, table.createdAt),
+    uniqueIndex('reports_one_pending_idx').on(table.reporterId, table.targetId).where(sql`${table.status} = 'pending'`),
+  ],
+);
+
+/**
+ * Evidencia de una denuncia: COPIA de un mensaje o estado elegido por quien denuncia.
+ * Se copia (no se referencia) para que soporte nunca tenga acceso al chat original y para que
+ * borrar el mensaje o que venza el estado no destruya la prueba. Texto y archivo van cifrados
+ * con AAD = "evidence:<id>".
+ */
+export const reportEvidence = pgTable(
+  'report_evidence',
+  {
+    id: uuid('id').primaryKey(),
+    reportId: uuid('report_id')
+      .notNull()
+      .references(() => reports.id, { onDelete: 'cascade' }),
+    source: reportEvidenceSourceEnum('source').notNull(),
+    /** Id del mensaje o estado original (sin clave foránea: el original puede borrarse). */
+    sourceId: uuid('source_id').notNull(),
+    /** text | sticker | image | file | audio | video (lo determina el servidor). */
+    kind: text('kind').notNull(),
+    bodyEncrypted: text('body_encrypted').notNull(),
+    stickerCode: text('sticker_code'),
+    storageKey: text('storage_key').unique(),
+    mimeType: text('mime_type'),
+    sizeBytes: integer('size_bytes'),
+    width: integer('width'),
+    height: integer('height'),
+    durationMs: integer('duration_ms'),
+    originalCreatedAt: ts('original_created_at').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (table) => [index('report_evidence_report_idx').on(table.reportId)],
+);
+
 export const auditLog = pgTable(
   'audit_log',
   {
@@ -425,3 +492,6 @@ export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type UserBlockRow = typeof userBlocks.$inferSelect;
 export type NearbyPresenceRow = typeof nearbyPresence.$inferSelect;
 export type NearbyGreetingRow = typeof nearbyGreetings.$inferSelect;
+export type ReportRow = typeof reports.$inferSelect;
+export type ReportEvidenceRow = typeof reportEvidence.$inferSelect;
+export type NewReportEvidenceRow = typeof reportEvidence.$inferInsert;

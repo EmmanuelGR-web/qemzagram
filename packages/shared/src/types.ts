@@ -1,4 +1,4 @@
-import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
+import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, REPORT_EVIDENCE_SOURCES, REPORT_STATUSES, ReportReason, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 import type { NearbyDistance, NearbyGreetingState } from './nearby';
 
 /** Contratos de datos (DTO) que viajan entre la API y la Web. */
@@ -289,4 +289,22 @@ export interface NearbyGreetResultDto {
 export interface NearbyGreetingsDto {
   received: NearbyGreetingDto[];
   sent: NearbyGreetingDto[];
+}
+
+/* ---------- Fase 6: denuncias ---------- */
+
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+export type ReportEvidenceSource = (typeof REPORT_EVIDENCE_SOURCES)[number];
+
+/**
+ * Una denuncia vista por QUIEN LA HIZO. No se informa la decisión exacta (confirmada o descartada):
+ * solo si ya fue revisada, para no convertir las denuncias en una herramienta de presión.
+ */
+export interface MyReportDto {
+  id: string;
+  user: { id: string; displayName: string; avatarUrl: string | null };
+  reason: ReportReason;
+  reviewed: boolean;
+  evidenceCount: number;
+  createdAt: string;
 }

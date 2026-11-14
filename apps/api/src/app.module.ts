@@ -18,6 +18,7 @@ import { MediaModule } from './media/media.module';
 import { NearbyModule } from './nearby/nearby.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { ReportsModule } from './reports/reports.module';
 import { StatusesModule } from './statuses/statuses.module';
 import { StickersModule } from './stickers/stickers.module';
 import { StorageModule } from './storage/storage.module';
@@ -49,6 +50,7 @@ import { UsersModule } from './users/users.module';
     StatusesModule,
     CallsModule,
     NotificationsModule,
+    ReportsModule,
     RealtimeModule,
   ],
   controllers: [HealthController],

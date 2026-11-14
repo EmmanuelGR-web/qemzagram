@@ -85,6 +85,13 @@
       "when": 1794629677393,
       "tag": "0011_silenciar_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794630053641,
+      "tag": "0012_denuncias",
+      "breakpoints": true
     }
   ]
 }
