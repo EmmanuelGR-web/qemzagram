@@ -20,7 +20,7 @@ Este documento dice **qué está implementado, qué no, y qué falta** para oper
 | **A06 Componentes vulnerables** | `npm run audit` (dependencias de producción): 0 vulnerabilidades. En herramientas de desarrollo quedan 7 avisos de severidad baja por `deepmerge` (usado internamente por `jest`): no existe versión corregida publicada y solo procesa la configuración local de los tests, nunca datos de usuarios. `@nestjs/cli` se actualizó a v12 y el `esbuild` interno de `drizzle-kit` se fuerza a 0.25 con `overrides`. Recomendado: activar Dependabot en GitHub. |
 | **A07 Fallas de autenticación** | Política de contraseña fuerte; bloqueo de 15 min tras 5 intentos; límites por ruta (login 10/min, registro 5/min, recuperación 3/min); respuestas idénticas para usuario inexistente o contraseña errónea y mismo tiempo de respuesta; verificación de correo obligatoria; al restablecer contraseña se cierran todas las sesiones y se avisa por correo. |
 | **A08 Integridad** | Migraciones versionadas; pruebas automáticas que corren el flujo completo. |
-| **A09 Registro y monitoreo** | Tabla `audit_log` (registro, inicios de sesión fallidos/exitosos, bloqueos, reutilización de tokens, cambios de contraseña, pausa/baja). Los correos se enmascaran en los logs. No se registran contraseñas, tokens ni mensajes. |
+| **A09 Registro y monitoreo** | Tabla `audit_log` (registro, inicios de sesión fallidos/exitosos, bloqueos, reutilización de tokens, cambios de contraseña, pausa/baja). Los correos se enmascaran en los logs. No se registran contraseñas, tokens ni mensajes. **Retención:** `RetentionService` borra la auditoría (tiene IP) de más de 180 días y las sesiones vencidas; conserva las revocadas vigentes para no perder la detección de reutilización de tokens. |
 | **A10 SSRF** | La API no realiza peticiones a URLs provistas por usuarios. ffmpeg solo puede leer archivos locales (`-protocol_whitelist file`). |
 
 Otros controles: protección **CSRF** (verificación de `Origin` + cookies `SameSite=Strict`), **límite de tamaño** de cuerpos y de imágenes (5 MB, 40 megapíxeles), **validación del contenido real** de las imágenes (no de la extensión), re-codificación a WebP (elimina EXIF/GPS y código oculto), nombres de archivo aleatorios, `X-Content-Type-Options: nosniff`.
@@ -101,7 +101,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - La ubicación la informa el navegador: alguien puede **falsearla** (por ejemplo, con herramientas de desarrollador). Los límites de cambios lo hacen lento, pero con **varias cuentas** una persona decidida podría ubicar la celda de ~1 km de alguien visible. Por eso la visibilidad es temporal y opcional.
 - En zonas poco pobladas, una celda de ~1 km puede identificar un barrio o una casa aislada. La pantalla de consentimiento lo advierte de forma general; conviene sumar una advertencia específica antes del lanzamiento.
 - Que alguien desaparezca de tu agenda o de tus búsquedas puede hacerte sospechar un bloqueo: ninguna app puede ocultarlo del todo.
-- No hay verificación de edad: definir una edad mínima (ver §5) es **obligatorio** antes de abrir esta función al público.
+- Edad mínima: **18 años** para toda la cuenta (Despliegue 4), pero es solo una **declaración** en la casilla del registro, sin verificación. Evaluar con un/a abogado/a si alcanza antes de abrir esta función al público.
 
 ## 2.5 Silenciar, denuncias y panel de soporte (Fase 6)
 
@@ -214,7 +214,9 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | Llamadas E2EE | ✅ En chats cifrados (cifrado por cuadro de LiveKit); sin probar con un LiveKit real | Probar con el LiveKit del despliegue |
 | Antivirus en adjuntos cifrados de extremo a extremo | No es posible (el servidor no ve el contenido); sí se escanea la copia de una denuncia | Asumido por diseño |
 | Revisión de riesgos y legal de "Personas cercanas" | Diseño con celdas de 1 km, opt-in de 1 h y anti-rastreo (§2.4) | **Antes de abrirla al público** |
-| Edad mínima / verificación de edad | No implementada | Antes de lanzar (especialmente "Personas cercanas") |
+| Edad mínima / verificación de edad | ✅ 18 años, declarada con casilla obligatoria (la API rechaza el registro sin ella y guarda versión y fecha aceptadas). Sin verificación real | Revisión legal; ver `docs/LEGAL.md` §5 |
+| Documentos legales | ✅ Borradores de Términos y Privacidad en `/terminos` y `/privacidad` (Ley 25.326). Faltan los datos del responsable y la revisión de un/a abogado/a | `docs/LEGAL.md` |
+| Exportar mis datos / volver a aceptar textos nuevos / baja directa por soporte | No implementados (el acceso se atiende por correo) | `docs/LEGAL.md` §5 |
 | Prueba de penetración externa | No realizada | **Obligatoria antes de lanzar** |
 | Moderación con niveles de permiso / doble aprobación de bajas | Un solo rol `support` (ver §2.5) | Si el equipo crece |
 | Copias de seguridad y recuperación ante desastres | Depende del hosting elegido | Despliegue |
@@ -231,7 +233,7 @@ Esto es **orientación general, no asesoramiento legal**:
 - **Ley 26.388** (delitos informáticos) y obligaciones de cooperación con la justicia.
 - **Menores de edad:** definir edad mínima de uso y consentimiento parental; ver normativa aplicable.
 - **Si habrá usuarios en la UE:** RGPD (GDPR). **Si en EE. UU. (California):** CCPA/CPRA.
-- **Documentos que necesitás redactar:** Términos y Condiciones, Política de Privacidad, Política de Cookies, procedimiento de **denuncias y bajas**, procedimiento de **respuesta a incidentes** (con plazos de notificación) y registro de tratamiento de datos.
+- **Documentos:** ✅ borradores de Términos y Condiciones y Política de Privacidad (incluye cookies, denuncias y bajas), con la guía de la AAIP en [`LEGAL.md`](LEGAL.md). Falta: revisión profesional, procedimiento escrito de **respuesta a incidentes** (con plazos de notificación) y registro de tratamiento de datos.
 - **Normas ISO de referencia:** ISO/IEC 27001 (gestión de seguridad), 27002 (controles), 27701 (privacidad), 27034 (seguridad de aplicaciones). Pueden usarse como guía aunque no se certifique.
 - **Marcas:** verificar disponibilidad de "Qemzagram" en el INPI (clases 9 y 38) antes de invertir en publicidad.
 
@@ -245,7 +247,7 @@ Esto es **orientación general, no asesoramiento legal**:
 - [ ] ClamAV (`clamd`) y ffmpeg instalados en el servidor, con firmas antivirus actualizadas
 - [ ] 2FA activado en todas las cuentas de soporte; `POW_ENABLED=true` y `REDIS_URL` si hay más de una instancia
 - [ ] WAF delante de la web y la API
-- [ ] Términos, Privacidad y procedimiento de denuncias publicados
+- [ ] Términos y Privacidad: completar `apps/web/src/lib/legal.ts` y revisión de un/a abogado/a (los borradores ya están publicados en la app)
 - [ ] Registro de la base de datos ante la AAIP (si corresponde)
 - [ ] Monitoreo, alertas y plan de respuesta a incidentes
 - [ ] Dependabot / `npm audit` en cada cambio (integración continua)

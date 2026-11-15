@@ -68,4 +68,4 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 ## Despliegue y operación (en paralelo)
 - Integración continua (tests + `npm audit` en cada cambio), Dependabot, y construcción + prueba de humo de las imágenes Docker de producción (amd64 en cada push; arm64 a pedido).
 - Dockerfiles de producción, hosting con HTTPS, backups probados, monitoreo y alertas.
-- Documentos legales (Términos, Privacidad) y registro de base de datos ante la AAIP.
+- Documentos legales: ✅ borradores de Términos y Privacidad en la web (`/terminos`, `/privacidad`), edad mínima 18 con casilla obligatoria (versión y fecha aceptadas guardadas), retención de auditoría (180 días) y sesiones vencidas. Pendiente: datos del responsable, revisión de un/a abogado/a e inscripción ante la AAIP (guía en [`LEGAL.md`](LEGAL.md)).

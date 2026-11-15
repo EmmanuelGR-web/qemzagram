@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 import { DB, type Database } from '../database.types';
 import { sessions, type SessionRow } from '../schema';
 
@@ -38,6 +38,16 @@ export class SessionsRepository {
 
   async revoke(id: string): Promise<void> {
     await this.db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, id));
+  }
+
+  /**
+   * Minimización de datos: borra las sesiones VENCIDAS antes de `before` (tienen IP y navegador).
+   * Las revocadas pero todavía vigentes se conservan a propósito: sirven para detectar la
+   * reutilización de un refresh token robado. Un token vencido se rechaza igual, así que borrarlo es seguro.
+   */
+  async deleteExpiredBefore(before: Date): Promise<number> {
+    const removed = await this.db.delete(sessions).where(lt(sessions.expiresAt, before)).returning({ id: sessions.id });
+    return removed.length;
   }
 
   async revokeAllForUser(userId: string): Promise<void> {

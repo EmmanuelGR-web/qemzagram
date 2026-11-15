@@ -162,7 +162,7 @@ describe('Panel de soporte: denuncias, bajas, apelaciones y estadísticas', () =
     expect((await login(malo).expect(403)).body.code).toBe('ACCOUNT_BANNED');
     expect(ctx.mail.banned).toContain(malo.email);
     // El correo no se puede volver a registrar (la cuenta sigue ocupándolo).
-    await request(ctx.app.getHttpServer()).post('/auth/register').set('Origin', ORIGIN).send({ email: malo.email, tag: 'malo.nuevo', password: 'Ma#Soporte2026-ok' }).expect(202);
+    await request(ctx.app.getHttpServer()).post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: malo.email, tag: 'malo.nuevo', password: 'Ma#Soporte2026-ok' }).expect(202);
     expect(await ctx.app.get(UsersRepository).findByTag('malo.nuevo')).toBeUndefined();
   });
 

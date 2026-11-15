@@ -7,6 +7,7 @@ import { BlocksRepository } from './repositories/blocks.repository';
 import { GreetingsRepository } from './repositories/greetings.repository';
 import { ReportsRepository } from './repositories/reports.repository';
 import { AppealsRepository } from './repositories/appeals.repository';
+import { AuditRepository } from './repositories/audit.repository';
 import { MfaRepository } from './repositories/mfa.repository';
 import { PasskeysRepository } from './repositories/passkeys.repository';
 import { E2eeKeysRepository } from './repositories/e2ee-keys.repository';
@@ -78,6 +79,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     PasskeysRepository,
     E2eeKeysRepository,
     SupportStatsRepository,
+    AuditRepository,
   ],
   exports: [
     DB,
@@ -100,6 +102,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     PasskeysRepository,
     E2eeKeysRepository,
     SupportStatsRepository,
+    AuditRepository,
   ],
 })
 export class DatabaseModule implements OnApplicationShutdown {

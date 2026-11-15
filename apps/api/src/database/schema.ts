@@ -65,6 +65,12 @@ export const users = pgTable('users', {
   /** Desafío WebAuthn vigente (CIFRADO, un solo uso, vence a los 5 minutos). */
   webauthnChallengeEncrypted: text('webauthn_challenge_encrypted'),
   webauthnChallengeExpiresAt: ts('webauthn_challenge_expires_at'),
+  /**
+   * Prueba del consentimiento (Ley 25.326): versión de Términos/Privacidad aceptada al registrarse
+   * (`LEGAL_VERSION`) y cuándo. Nulas en cuentas creadas antes de que existieran los textos.
+   */
+  termsVersion: text('terms_version'),
+  termsAcceptedAt: ts('terms_accepted_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -101,7 +107,7 @@ export const sessions = pgTable(
     revokedAt: ts('revoked_at'),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
-  (table) => [index('sessions_user_idx').on(table.userId)],
+  (table) => [index('sessions_user_idx').on(table.userId), index('sessions_expires_idx').on(table.expiresAt)],
 );
 
 /** Agenda: a quién agregó cada usuario (por tag). */
@@ -584,7 +590,12 @@ export const auditLog = pgTable(
     meta: jsonb('meta').$type<Record<string, unknown>>(),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
-  (table) => [index('audit_log_user_idx').on(table.userId), index('audit_log_action_idx').on(table.action)],
+  (table) => [
+    index('audit_log_user_idx').on(table.userId),
+    index('audit_log_action_idx').on(table.action),
+    // Para la purga por antigüedad (RetentionService) sin recorrer toda la tabla.
+    index('audit_log_created_idx').on(table.createdAt),
+  ],
 );
 
 export type UserRow = typeof users.$inferSelect;

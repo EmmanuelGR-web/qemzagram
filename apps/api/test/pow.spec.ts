@@ -69,7 +69,7 @@ describe('Prueba de trabajo anti-bots (CAPTCHA propio)', () => {
 
   it('el registro también lo exige', async () => {
     const server = ctx.app.getHttpServer();
-    const body = { email: 'nuevo.pow@example.com', tag: 'nuevo.pow', password: 'Nu#Prueba2026-ok' };
+    const body = { email: 'nuevo.pow@example.com', tag: 'nuevo.pow', password: 'Nu#Prueba2026-ok', acceptTerms: true };
     await request(server).post('/auth/register').set('Origin', ORIGIN).send(body).expect(400);
     await request(server).post('/auth/register').set('Origin', ORIGIN).set(POW_HEADER, solve(await challenge('register'))).send(body).expect(202);
     await request(server).post('/auth/forgot-password').set('Origin', ORIGIN).send({ email: body.email }).expect(400);

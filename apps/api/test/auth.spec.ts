@@ -24,20 +24,20 @@ describe('Autenticación y seguridad de cuentas', () => {
   });
 
   it('rechaza contraseñas débiles y tags inválidos con detalle', async () => {
-    const weak = await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'a@example.com', tag: 'debil', password: 'password123' }).expect(400);
+    const weak = await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'a@example.com', tag: 'debil', password: 'password123' }).expect(400);
     expect(weak.body.code).toBe('VALIDATION_ERROR');
     expect(weak.body.issues.length).toBeGreaterThan(0);
 
-    await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'a@example.com', tag: 'Ab', password: STRONG_PASSWORD }).expect(400);
-    await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'a@example.com', tag: 'admin', password: STRONG_PASSWORD }).expect(400);
-    await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'no-es-correo', tag: 'validotag', password: STRONG_PASSWORD }).expect(400);
+    await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'a@example.com', tag: 'Ab', password: STRONG_PASSWORD }).expect(400);
+    await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'a@example.com', tag: 'admin', password: STRONG_PASSWORD }).expect(400);
+    await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'no-es-correo', tag: 'validotag', password: STRONG_PASSWORD }).expect(400);
     // la contraseña no puede contener el tag
-    await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'x@example.com', tag: 'segura', password: 'Qz!Segura2026-ok' }).expect(400);
+    await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'x@example.com', tag: 'segura', password: 'Qz!Segura2026-ok' }).expect(400);
   });
 
   it('registra, exige verificar el correo y permite iniciar sesión con tag o correo', async () => {
     const email = 'maria@example.com';
-    await http().post('/auth/register').set('Origin', ORIGIN).send({ email, tag: 'maria', password: STRONG_PASSWORD }).expect(202);
+    await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email, tag: 'maria', password: STRONG_PASSWORD }).expect(202);
 
     const beforeVerify = await http().post('/auth/login').set('Origin', ORIGIN).send({ identifier: 'maria', password: STRONG_PASSWORD }).expect(403);
     expect(beforeVerify.body.code).toBe('EMAIL_NOT_VERIFIED');
@@ -55,11 +55,11 @@ describe('Autenticación y seguridad de cuentas', () => {
   });
 
   it('no permite repetir tags ni correos, y no revela si un correo existe', async () => {
-    const duplicatedTag = await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'otro@example.com', tag: 'MARIA', password: 'Zx#Distinta2026!' }).expect(409);
+    const duplicatedTag = await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'otro@example.com', tag: 'MARIA', password: 'Zx#Distinta2026!' }).expect(409);
     expect(duplicatedTag.body.code).toBe('TAG_TAKEN');
 
     const before = ctx.mail.verifications.length;
-    await http().post('/auth/register').set('Origin', ORIGIN).send({ email: 'maria@example.com', tag: 'maria2', password: 'Zx#Distinta2026!' }).expect(202);
+    await http().post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email: 'maria@example.com', tag: 'maria2', password: 'Zx#Distinta2026!' }).expect(202);
     expect(ctx.mail.accountExists).toContain('maria@example.com');
     expect(ctx.mail.verifications.length).toBe(before); // no se creó otra cuenta
     const rows = await ctx.db.select().from(users).where(eq(users.email, 'maria@example.com'));

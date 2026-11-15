@@ -173,3 +173,14 @@ export const MFA_METHODS = ['totp', 'backup', 'passkey'] as const;
 export const PASSKEYS_MAX = 10;
 export const PASSKEY_NAME_MAX_LENGTH = 40;
 export const WEBAUTHN_TRANSPORTS = ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb'] as const;
+
+/* ---------- Despliegue 4: documentos legales y retención de datos ---------- */
+/** Edad mínima para tener una cuenta (se declara con una casilla obligatoria al registrarse). */
+export const MIN_AGE = 18;
+/**
+ * Versión vigente de los Términos y la Política de Privacidad (fecha de publicación, AAAA-MM-DD).
+ * Cambiala cada vez que modifiques los textos: la API guarda qué versión aceptó cada persona.
+ */
+export const LEGAL_VERSION = '2026-11-15';
+/** El registro de auditoría (que incluye direcciones IP) se borra pasado este plazo (~6 meses). */
+export const AUDIT_LOG_RETENTION_DAYS = 180;

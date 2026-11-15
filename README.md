@@ -31,7 +31,7 @@ Este repositorio contiene las **Fases 1 a 6 y la 7A** del proyecto: la base segu
 | **Fase 7A:** **verificación en dos pasos** (app autenticadora, códigos de respaldo y **llaves de acceso**), **anti-bots** propio, límites compartidos con Redis y **CSP con nonce** | ✅ |
 | **Fase 7B:** **cifrado de extremo a extremo** de mensajes, archivos y llamadas, con **código de recuperación**, **código de seguridad** y **denuncias verificables** (franqueo) | ✅ |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 180 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 194 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 
@@ -155,7 +155,7 @@ qemzagram/
 │     └─ src/{app,components,lib}
 ├─ packages/
 │  └─ shared/                 ← Tipos y validaciones compartidas (una sola fuente de verdad)
-├─ docs/                      ← SEGURIDAD.md · ARQUITECTURA.md · FASES.md
+├─ docs/                      ← SEGURIDAD.md · ARQUITECTURA.md · FASES.md · DESPLIEGUE.md · LEGAL.md
 ├─ scripts/setup-env.mjs      ← generador de configuración
 └─ docker-compose.yml         ← PostgreSQL + Mailpit para desarrollo
 ```
@@ -190,8 +190,9 @@ Están documentadas una por una en [`apps/api/.env.example`](apps/api/.env.examp
 
 ## 8. Publicación (resumen)
 
-Antes de publicar para usuarios reales (guía completa pendiente en la Fase de despliegue):
+Antes de publicar para usuarios reales. La guía paso a paso (gratis, en Oracle Cloud) está en [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md) y la parte legal en [`docs/LEGAL.md`](docs/LEGAL.md):
 
+- Completar los datos del responsable en `apps/web/src/lib/legal.ts`, hacer revisar los borradores de **Términos** y **Privacidad** (`/terminos`, `/privacidad`) por un/a abogado/a e inscribir la base ante la AAIP.
 - Servir **web y API bajo el mismo dominio principal con HTTPS** (la web reenvía `/api/*` a la API; las cookies son `Secure` en producción).
 - Definir `WEB_ORIGIN` con la URL pública exacta de la web, y `API_URL` / `NEXT_PUBLIC_WS_URL` al **compilar** la web.
 - Usar PostgreSQL gestionado con **backups**, un servicio SMTP real (con SPF/DKIM/DMARC) y almacenamiento de archivos externo (S3 o similar).

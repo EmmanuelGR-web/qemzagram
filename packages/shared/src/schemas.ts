@@ -8,6 +8,7 @@ import {
   GROUP_MAX_MEMBERS,
   GROUP_TITLE_MAX_LENGTH,
   MESSAGE_MAX_LENGTH,
+  MIN_AGE,
   CALL_KINDS,
   CHAT_MUTE_DURATIONS,
   CONTACTS_MAX,
@@ -85,6 +86,13 @@ export const registerSchema = z
     tag: tagSchema,
     displayName: displayNameSchema.optional(),
     password: passwordSchema,
+    /**
+     * Consentimiento expreso (Ley 25.326): declara tener la edad mínima y acepta los Términos y la
+     * Política de Privacidad vigentes. Sin `true` exacto no hay registro; la API guarda fecha y versión.
+     */
+    acceptTerms: z.literal(true, {
+      message: `Para crear la cuenta tenés que tener ${MIN_AGE} años o más y aceptar los Términos y la Política de Privacidad`,
+    }),
   })
   .superRefine((value, ctx) => {
     if (getPasswordIssues(value.password, { tag: value.tag, email: value.email }).includes('personal')) {

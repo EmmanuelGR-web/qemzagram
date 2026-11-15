@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { LEGAL } from '@/lib/legal';
 import { Avatar } from './Avatar';
-import { ChatIcon, CloseIcon, ContactsIcon, HelpIcon, LogoutIcon, MenuIcon, NearbyIcon, SettingsIcon, ShieldIcon, StatusIcon, UserIcon } from './icons';
+import { ChatIcon, CloseIcon, ContactsIcon, FileIcon, HelpIcon, LogoutIcon, MenuIcon, NearbyIcon, SettingsIcon, ShieldIcon, StatusIcon, UserIcon } from './icons';
 import { LogoMark } from './Logo';
 
 const TABS = [
@@ -15,7 +16,7 @@ const TABS = [
   { href: '/contactos', label: 'Contactos', Icon: ContactsIcon },
 ] as const;
 
-const SUPPORT_EMAIL = 'soporte@qemzagram.com';
+const SUPPORT_EMAIL = LEGAL.supportEmail;
 
 /**
  * Menú móvil en dos partes:
@@ -93,6 +94,9 @@ export function AppHeader() {
               <a className="menu-item" role="menuitem" href={`mailto:${SUPPORT_EMAIL}?subject=Soporte%20Qemzagram`}>
                 <HelpIcon /> Ayuda y soporte
               </a>
+              <Link href="/terminos" className="menu-item" role="menuitem">
+                <FileIcon /> Términos y privacidad
+              </Link>
               <button
                 className="menu-item menu-danger"
                 role="menuitem"

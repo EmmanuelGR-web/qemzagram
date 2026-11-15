@@ -1,6 +1,6 @@
 'use client';
 
-import { getPasswordIssues, registerSchema } from '@qemzagram/shared';
+import { getPasswordIssues, MIN_AGE, registerSchema } from '@qemzagram/shared';
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { PasswordField } from '@/components/PasswordField';
@@ -14,18 +14,19 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   const normalizedTag = tag.trim().toLowerCase().replace(/^@/, '');
   const passwordOk = getPasswordIssues(password, { tag: normalizedTag, email }).length === 0;
-  const canSubmit = !busy && email.length > 3 && normalizedTag.length >= 3 && passwordOk && password === confirm;
+  const canSubmit = !busy && accepted && email.length > 3 && normalizedTag.length >= 3 && passwordOk && password === confirm;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    const parsed = registerSchema.safeParse({ email, tag: normalizedTag, displayName: displayName.trim() || undefined, password });
+    const parsed = registerSchema.safeParse({ email, tag: normalizedTag, displayName: displayName.trim() || undefined, password, acceptTerms: accepted });
     if (!parsed.success) {
       setError(parsed.error.issues.map((issue) => issue.message).join('. '));
       return;
@@ -82,6 +83,20 @@ export default function RegisterPage() {
         <PasswordField label="Contraseña" value={password} onChange={setPassword} autoComplete="new-password" showRules context={{ tag: normalizedTag, email }} />
         <PasswordField label="Repetí la contraseña" value={confirm} onChange={setConfirm} autoComplete="new-password" />
         {confirm.length > 0 && password !== confirm && <p className="alert alert-error">Las contraseñas no coinciden.</p>}
+        <label className="checkbox">
+          <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} required />
+          <span>
+            Tengo {MIN_AGE} años o más y acepto los{' '}
+            <Link href="/terminos" target="_blank" rel="noopener noreferrer">
+              Términos y Condiciones
+            </Link>{' '}
+            y la{' '}
+            <Link href="/privacidad" target="_blank" rel="noopener noreferrer">
+              Política de Privacidad
+            </Link>
+            .
+          </span>
+        </label>
         {error && (
           <p className="alert alert-error" role="alert">
             {error}
@@ -90,9 +105,7 @@ export default function RegisterPage() {
         <button className="btn btn-primary" disabled={!canSubmit}>
           {busy ? 'Creando…' : 'Crear mi cuenta'}
         </button>
-        <p className="legal">
-          Al registrarte aceptás los Términos y la Política de Privacidad de Qemzagram. Tus datos se tratan conforme a la Ley 25.326.
-        </p>
+        <p className="legal">Tus datos se tratan conforme a la Ley 25.326. Guardamos la fecha y la versión de los textos que aceptás.</p>
       </form>
       <div className="auth-links">
         <span>¿Ya tenés cuenta?</span>

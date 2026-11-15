@@ -210,7 +210,7 @@ export interface TestUser {
 export async function signUp(ctx: TestContext, tag: string, password = STRONG_PASSWORD): Promise<TestUser> {
   const email = `${tag}@example.com`;
   const server = ctx.app.getHttpServer();
-  await request(server).post('/auth/register').set('Origin', ORIGIN).send({ email, tag, password }).expect(202);
+  await request(server).post('/auth/register').set('Origin', ORIGIN).send({ acceptTerms: true, email, tag, password }).expect(202);
   await request(server).post('/auth/verify-email').set('Origin', ORIGIN).send({ token: ctx.mail.lastVerification(email) }).expect(200);
   const agent = request.agent(server).set('Origin', ORIGIN);
   const login = await agent.post('/auth/login').send({ identifier: tag, password }).expect(200);

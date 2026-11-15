@@ -10,6 +10,7 @@ import {
 import {
   APPEAL_RETRY_DAYS,
   getPasswordIssues,
+  LEGAL_VERSION,
   PASSWORD_ISSUE_MESSAGES,
   type AppealInput,
   type LoginInput,
@@ -95,6 +96,9 @@ export class AuthService {
         tag: input.tag,
         passwordHash,
         displayName: input.displayName ?? input.tag,
+        // El esquema ya exigió acceptTerms === true; la versión la decide el servidor, nunca el cliente.
+        termsVersion: LEGAL_VERSION,
+        termsAcceptedAt: new Date(),
       });
     } catch (error) {
       if (isUniqueViolation(error)) {

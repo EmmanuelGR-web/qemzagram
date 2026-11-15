@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { DB, type Database } from '../database/database.types';
-import { auditLog } from '../database/schema';
+import { Injectable, Logger } from '@nestjs/common';
+import { AuditRepository } from '../database/repositories/audit.repository';
 
 export type AuditAction =
   | 'register'
@@ -50,14 +49,14 @@ export type AuditAction =
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(private readonly audit: AuditRepository) {}
 
   async log(
     action: AuditAction,
     context: { userId?: string | null; ip?: string | null; meta?: Record<string, unknown> } = {},
   ): Promise<void> {
     try {
-      await this.db.insert(auditLog).values({
+      await this.audit.insert({
         action,
         userId: context.userId ?? null,
         ip: context.ip ?? null,
