@@ -65,9 +65,13 @@ export function mediaUrl(path: string | null | undefined): string | null {
   return path ? `/api${path}` : null;
 }
 
+/** Error con un mensaje pensado para mostrarle a la persona (por ejemplo, un archivo que no se pudo procesar). */
+export class UserFacingError extends Error {}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     return error.issues.length > 0 ? error.issues.map((issue) => issue.message).join('. ') : error.message;
   }
+  if (error instanceof UserFacingError) return error.message;
   return 'No pudimos conectar con el servidor. Revisá tu conexión.';
 }

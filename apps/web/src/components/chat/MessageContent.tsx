@@ -1,6 +1,6 @@
 'use client';
 
-import { GENERAL_STICKER_LABELS, type AttachmentDto } from '@qemzagram/shared';
+import { decryptFile, GENERAL_STICKER_LABELS, type AttachmentDto, type E2eeFileRef } from '@qemzagram/shared';
 import { useEffect, useState } from 'react';
 import { CloseIcon, DownloadIcon, FileIcon, MicIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { mediaUrl } from '@/lib/api';
@@ -42,14 +42,125 @@ export function MessageContent({ message, onMediaError }: Props) {
   }
   return (
     <>
-      {attachment && <AttachmentView attachment={attachment} onMediaError={onMediaError} />}
+      {message.secure === 'e2ee' && message.file ? (
+        <E2eeAttachment file={message.file} attachment={attachment} onMediaError={onMediaError} />
+      ) : (
+        attachment && !attachment.e2ee && <AttachmentView attachment={attachment} src={mediaUrl(attachment.url) ?? ''} onMediaError={onMediaError} />
+      )}
       {message.body && <span className="bubble-text">{message.body}</span>}
     </>
   );
 }
 
-function AttachmentView({ attachment, onMediaError }: { attachment: AttachmentDto; onMediaError: () => void }) {
-  const src = mediaUrl(attachment.url) ?? '';
+/* ---------- Adjuntos cifrados de extremo a extremo ---------- */
+
+/** Archivos ya descifrados en esta pestaña (id del adjunto → URL local `blob:`). */
+const decrypted = new Map<string, string>();
+const DECRYPTED_MAX = 60;
+
+/** Baja los bytes cifrados, los descifra EN EL NAVEGADOR y devuelve una URL local (nunca sale del dispositivo). */
+async function decryptToUrl(attachment: AttachmentDto, file: E2eeFileRef): Promise<string> {
+  const cached = decrypted.get(attachment.id);
+  if (cached) return cached;
+  const response = await fetch(mediaUrl(attachment.url) ?? '', { credentials: 'same-origin' });
+  if (!response.ok) throw new Error('No se pudo descargar');
+  const plain = await decryptFile(new Uint8Array(await response.arrayBuffer()), file.key, attachment.id);
+  if (plain.length !== file.size) throw new Error('Tamaño inesperado');
+  // Los documentos nunca se abren dentro de la app: siempre como descarga.
+  const url = URL.createObjectURL(new Blob([plain], { type: file.kind === 'file' ? 'application/octet-stream' : file.mime }));
+  decrypted.set(attachment.id, url);
+  if (decrypted.size > DECRYPTED_MAX) {
+    const [oldest] = decrypted.keys();
+    if (oldest) {
+      URL.revokeObjectURL(decrypted.get(oldest) ?? '');
+      decrypted.delete(oldest);
+    }
+  }
+  return url;
+}
+
+function E2eeAttachment({ file, attachment, onMediaError }: { file: E2eeFileRef; attachment: AttachmentDto | null; onMediaError: () => void }) {
+  // El archivo tiene que ser EL de este mensaje (el id también está atado al cifrado del archivo).
+  if (!attachment?.e2ee || attachment.id !== file.id) return <span className="bubble-text muted">⚠️ Adjunto no disponible</span>;
+  return file.kind === 'file' ? <E2eeDocument file={file} attachment={attachment} onMediaError={onMediaError} /> : <E2eeInline file={file} attachment={attachment} onMediaError={onMediaError} />;
+}
+
+/** Vista que el resto de la burbuja ya sabe mostrar, con los datos que venían DENTRO del mensaje cifrado. */
+const asAttachment = (attachment: AttachmentDto, file: E2eeFileRef): AttachmentDto => ({
+  ...attachment,
+  kind: file.kind,
+  mimeType: file.mime,
+  size: file.size,
+  name: file.name,
+  width: file.w,
+  height: file.h,
+  durationMs: file.dur,
+});
+
+function E2eeInline({ file, attachment, onMediaError }: { file: E2eeFileRef; attachment: AttachmentDto; onMediaError: () => void }) {
+  const [src, setSrc] = useState<string | null>(() => decrypted.get(attachment.id) ?? null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setFailed(false);
+    decryptToUrl(attachment, file).then(
+      (url) => active && setSrc(url),
+      () => {
+        if (!active) return;
+        setFailed(true);
+        // Puede haber vencido la URL firmada: la página pide los mensajes de nuevo (con URLs nuevas).
+        onMediaError();
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [attachment, file, onMediaError]);
+
+  if (failed) return <span className="bubble-text muted">⚠️ No pudimos abrir este archivo</span>;
+  if (!src) return <span className="bubble-text muted">🔒 Descifrando…</span>;
+  return <AttachmentView attachment={asAttachment(attachment, file)} src={src} onMediaError={() => setFailed(true)} />;
+}
+
+/** Documento cifrado: se descifra recién al tocar "descargar". */
+function E2eeDocument({ file, attachment, onMediaError }: { file: E2eeFileRef; attachment: AttachmentDto; onMediaError: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const extension = file.name?.split('.').pop()?.toUpperCase() ?? '';
+
+  async function download() {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const link = document.createElement('a');
+      link.href = await decryptToUrl(attachment, file);
+      link.download = file.name ?? 'archivo';
+      link.rel = 'noopener';
+      link.click();
+    } catch {
+      setFailed(true);
+      onMediaError();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button type="button" className="file-chip file-chip-link" onClick={() => void download()} disabled={busy}>
+      <span className="file-chip-icon"><FileIcon /></span>
+      <span className="file-chip-body">
+        <strong>{file.name ?? 'Archivo'}</strong>
+        <small>
+          {failed ? 'No se pudo descargar. Probá de nuevo.' : `${extension ? `${extension} · ` : ''}${formatBytes(file.size)}`}
+        </small>
+      </span>
+      <span className="file-chip-action" aria-label="Descargar"><DownloadIcon /></span>
+    </button>
+  );
+}
+
+function AttachmentView({ attachment, src, onMediaError }: { attachment: AttachmentDto; src: string; onMediaError: () => void }) {
   switch (attachment.kind) {
     case 'image':
       return <ImageAttachment src={src} attachment={attachment} onMediaError={onMediaError} />;

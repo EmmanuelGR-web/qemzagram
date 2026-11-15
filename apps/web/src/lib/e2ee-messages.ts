@@ -2,6 +2,7 @@
 
 import {
   E2eeError,
+  encryptFile,
   keyFingerprint,
   openMessage,
   sealMessage,
@@ -14,9 +15,10 @@ import {
   type Recipient,
 } from '@qemzagram/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, ApiError } from './api';
+import { api, ApiError, UserFacingError } from './api';
 import { useE2ee } from './e2ee-context';
 import { loadSeenKey, saveSeenKey, type DeviceKey } from './e2ee-store';
+import type { SanitizedFile } from './media-sanitize';
 import { messagePreview } from './messages';
 
 /**
@@ -169,6 +171,46 @@ export function useMessageSender(conversationId: string) {
         } catch (error) {
           // Alguien entró, salió o cambió sus claves justo ahora: se vuelven a pedir y se cifra de nuevo (una vez).
           if (!(error instanceof ApiError && error.code === 'E2EE_KEYS_CHANGED') || attempt > 0) throw error;
+        }
+      }
+    },
+    [conversationId, plan],
+  );
+}
+
+/**
+ * Envía un archivo: si el chat es de extremo a extremo, `prepare()` lo limpia en el dispositivo, se cifra
+ * con una clave nueva y la clave viaja DENTRO del mensaje cifrado. Si no, se usa `legacy()` (el servidor
+ * valida, escanea y recodifica como siempre).
+ */
+export function useAttachmentSender(conversationId: string) {
+  const plan = useSendPlanner(conversationId);
+  return useCallback(
+    async (prepare: () => Promise<SanitizedFile>, caption: string, legacy: () => Promise<MessageDto>): Promise<MessageDto> => {
+      let planned = await plan();
+      if (!planned) return legacy();
+      const sanitized = await prepare();
+      const id = crypto.randomUUID();
+      const attachmentId = crypto.randomUUID();
+      const encrypted = await encryptFile(sanitized.data, attachmentId);
+      const content: E2eeContent = { t: 'file', body: caption, file: { ...sanitized.meta, id: attachmentId, key: encrypted.key, size: sanitized.data.length } };
+      for (let attempt = 0; ; attempt++) {
+        let sealed;
+        try {
+          sealed = await sealMessage(content, { conversationId, objectId: id, senderId: planned.device.userId }, planned.device, planned.recipients);
+        } catch {
+          throw new UserFacingError('No pudimos preparar este archivo para enviarlo cifrado.');
+        }
+        const form = new FormData();
+        form.append('meta', JSON.stringify({ id, attachmentId, envelope: sealed.envelope, commitment: sealed.commitment }));
+        form.append('file', new Blob([encrypted.blob], { type: 'application/octet-stream' }), 'cifrado.bin');
+        try {
+          return await api<MessageDto>(`/chats/${conversationId}/e2ee/attachments`, { form });
+        } catch (error) {
+          if (!(error instanceof ApiError && error.code === 'E2EE_KEYS_CHANGED') || attempt > 0) throw error;
+          const next = await plan();
+          if (!next) throw error;
+          planned = next;
         }
       }
     },

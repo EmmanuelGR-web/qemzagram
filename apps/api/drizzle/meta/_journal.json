@@ -127,6 +127,13 @@
       "when": 1794703979054,
       "tag": "0017_mensajes_e2ee",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794704664262,
+      "tag": "0018_adjuntos_e2ee",
+      "breakpoints": true
     }
   ]
 }

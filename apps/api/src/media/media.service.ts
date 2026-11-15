@@ -48,6 +48,7 @@ export class MediaService {
       durationMs: row.durationMs,
       url: signed.url,
       expiresAt: signed.expiresAt,
+      e2ee: row.e2ee,
     };
   }
 
@@ -64,6 +65,8 @@ export class MediaService {
     const row = await this.attachments.findById(id);
     if (!row || !(await this.conversations.getMemberRole(row.conversationId, viewerId))) throw new NotFoundException(NOT_FOUND);
     const data = await this.readBlob(row.storageKey, row.id);
+    // Cifrado de extremo a extremo: se entregan los bytes cifrados (los descifra el navegador) y nunca se muestran.
+    if (row.e2ee) return { data, mimeType: 'application/octet-stream', disposition: 'attachment', fileName: `qemzagram-${row.id.slice(0, 8)}.bin` };
     const isDocument = row.kind === 'file';
     return {
       data,

@@ -1,0 +1,1 @@
+ALTER TABLE "attachments" ADD COLUMN "e2ee" boolean DEFAULT false NOT NULL;

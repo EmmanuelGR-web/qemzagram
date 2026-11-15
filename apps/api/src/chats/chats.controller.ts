@@ -23,6 +23,8 @@ import {
   muteChatSchema,
   MESSAGE_MAX_LENGTH,
   sendAttachmentSchema,
+  E2EE_UPLOAD_MAX_BYTES,
+  sendE2eeAttachmentFormSchema,
   sendE2eeMessageSchema,
   sendMessageSchema,
   sendStickerSchema,
@@ -32,6 +34,7 @@ import {
   type CreateGroupInput,
   type MessageDto,
   type SendAttachmentInput,
+  type SendE2eeAttachmentMeta,
   type SendE2eeMessageInput,
   type SendStickerInput,
 } from '@qemzagram/shared';
@@ -48,6 +51,12 @@ import { ChatsService } from './chats.service';
 const attachmentUpload = FileInterceptor('file', {
   storage: memoryStorage(),
   limits: { fileSize: UPLOAD_MAX_BYTES_ANY, files: 1, fields: 2, parts: 3, fieldSize: MESSAGE_MAX_LENGTH * 4 },
+});
+
+/** Adjunto cifrado de extremo a extremo: el archivo (bytes cifrados) + el campo "meta" con el sobre. */
+const e2eeUpload = FileInterceptor('file', {
+  storage: memoryStorage(),
+  limits: { fileSize: E2EE_UPLOAD_MAX_BYTES, files: 1, fields: 1, parts: 2, fieldSize: 200_000 },
 });
 
 /** Multer interpreta el nombre del archivo como latin1: se recupera el UTF-8 original (tildes, ñ). */
@@ -141,6 +150,19 @@ export class ChatsController {
     @Body(new ZodPipe(sendE2eeMessageSchema)) body: SendE2eeMessageInput,
   ): Promise<MessageDto> {
     return this.chats.sendE2eeMessage(user.id, id, body);
+  }
+
+  @Post(':id/e2ee/attachments')
+  @HttpCode(201)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseInterceptors(e2eeUpload)
+  sendE2eeAttachment(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(sendE2eeAttachmentFormSchema)) body: { meta: SendE2eeAttachmentMeta },
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<MessageDto> {
+    return this.chats.sendE2eeAttachment(user.id, id, body.meta, uploadedFile(file).buffer);
   }
 
   @Post(':id/stickers')

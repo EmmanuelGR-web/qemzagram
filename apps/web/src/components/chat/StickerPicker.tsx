@@ -12,7 +12,8 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { PlusIcon, TrashIcon } from '@/components/icons';
 import { api, errorMessage, mediaUrl } from '@/lib/api';
-import { useMessageSender } from '@/lib/e2ee-messages';
+import { useAttachmentSender, useMessageSender } from '@/lib/e2ee-messages';
+import { sanitizeImage } from '@/lib/media-sanitize';
 import { formatBytes } from '@/lib/messages';
 
 interface Props {
@@ -30,6 +31,7 @@ export function StickerPicker({ conversationId, onSent, onClose }: Props) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const sendMessage = useMessageSender(conversationId);
+  const sendAttachment = useAttachmentSender(conversationId);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -64,13 +66,21 @@ export function StickerPicker({ conversationId, onSent, onClose }: Props) {
       .catch((caught: unknown) => setError(errorMessage(caught)));
   }, [tab, mine]);
 
+  /** Sticker propio en un chat cifrado: se descarga de "Mis stickers" y viaja cifrado como imagen. */
+  async function prepareOwnSticker(stickerId: string) {
+    const sticker = mine?.find((item) => item.id === stickerId);
+    const response = sticker ? await fetch(mediaUrl(sticker.url) ?? '', { credentials: 'same-origin' }) : null;
+    if (!response?.ok) throw new Error('No se pudo leer el sticker');
+    return sanitizeImage(await response.blob(), 'sticker');
+  }
+
   async function send(input: SendStickerInput) {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
       const legacy = () => api<MessageDto>(`/chats/${conversationId}/stickers`, { body: input });
-      onSent('code' in input ? await sendMessage({ t: 'sticker', code: input.code }, legacy) : await legacy());
+      onSent('code' in input ? await sendMessage({ t: 'sticker', code: input.code }, legacy) : await sendAttachment(() => prepareOwnSticker(input.stickerId), '', legacy));
       onClose();
     } catch (caught) {
       setError(errorMessage(caught));

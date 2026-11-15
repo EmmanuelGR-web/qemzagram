@@ -28,6 +28,6 @@ import { MediaService } from './media.service';
         env.CLAMAV_HOST ? new ClamAvScanner(env.CLAMAV_HOST, env.CLAMAV_PORT) : new DisabledAntivirus(),
     },
   ],
-  exports: [MediaService, MediaUrlService, MediaProcessor],
+  exports: [MediaService, MediaUrlService, MediaProcessor, AntivirusPort],
 })
 export class MediaModule {}

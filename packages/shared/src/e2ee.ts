@@ -525,3 +525,37 @@ export const sendE2eeMessageSchema = z
   })
   .strict();
 export type SendE2eeMessageInput = z.infer<typeof sendE2eeMessageSchema>;
+
+/* ---------- API: adjuntos ---------- */
+
+/** Tamaño máximo del archivo CIFRADO que se sube (el original más el iv y la etiqueta). */
+export const E2EE_UPLOAD_MAX_BYTES = encryptedFileSize(UPLOAD_MAX_BYTES_ANY);
+
+export const sendE2eeAttachmentMetaSchema = z
+  .object({
+    id: z.string().uuid(),
+    attachmentId: z.string().uuid(),
+    envelope: envelopeSchema,
+    commitment: b64(43).length(43),
+  })
+  .strict()
+  .refine((value) => value.id !== value.attachmentId, 'Ids repetidos');
+export type SendE2eeAttachmentMeta = z.infer<typeof sendE2eeAttachmentMetaSchema>;
+
+/** Formulario multipart: el campo `meta` (JSON) acompaña al archivo cifrado. */
+export const sendE2eeAttachmentFormSchema = z
+  .object({
+    meta: z
+      .string()
+      .max(200_000)
+      .transform((text, ctx) => {
+        try {
+          return JSON.parse(text) as unknown;
+        } catch {
+          ctx.addIssue({ code: 'custom', message: 'Datos del adjunto inválidos' });
+          return z.NEVER;
+        }
+      })
+      .pipe(sendE2eeAttachmentMetaSchema),
+  })
+  .strict();

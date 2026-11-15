@@ -233,6 +233,7 @@ function EvidenceItem({ item }: { item: SupportEvidenceDto }) {
         </small>
       )}
       {item.sticker && <p>Sticker: {GENERAL_STICKER_LABELS[item.sticker]}</p>}
+      {item.kind === 'malware' && <p className="alert alert-error">El archivo adjunto tenía malware: el antivirus lo bloqueó y no se guardó.</p>}
       {media && media.mimeType.startsWith('image/') && <img src={media.url} alt="Evidencia" className="support-media" />}
       {media && media.mimeType.startsWith('video/') && <video src={media.url} controls className="support-media" />}
       {media && media.mimeType.startsWith('audio/') && <audio src={media.url} controls />}

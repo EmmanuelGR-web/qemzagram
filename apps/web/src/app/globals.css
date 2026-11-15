@@ -346,6 +346,7 @@ html[data-theme='dark'] .chat-item[aria-current='page'] { background: var(--red-
 .file-chip { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.7rem; border-radius: 14px; background: var(--surface-2); color: var(--ink); min-width: 0; }
 .file-chip-link { margin: 0 -0.35rem 0.35rem; text-decoration: none !important; max-width: 340px; }
 .file-chip-link:hover { filter: brightness(0.97); }
+button.file-chip-link { border: 0; width: 100%; font: inherit; text-align: left; cursor: pointer; }
 .file-chip-icon { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 12px; background: var(--red-500); color: #fff; }
 .file-chip-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .file-chip-body strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92rem; }

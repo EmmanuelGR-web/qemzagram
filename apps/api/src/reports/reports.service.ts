@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { parseE2eeContent, REPORTS_PER_DAY, verifyFranking, type CreateReportInput, type E2eeContent, type MyReportDto } from '@qemzagram/shared';
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { decryptFile, parseE2eeContent, REPORTS_PER_DAY, verifyFranking, type CreateReportInput, type E2eeContent, type E2eeFileRef, type MyReportDto } from '@qemzagram/shared';
 import { randomUUID } from 'node:crypto';
 import { USER_NOT_FOUND } from '../blocks/blocks.service';
 import { AuditService } from '../common/audit.service';
@@ -10,6 +10,8 @@ import { ReportsRepository } from '../database/repositories/reports.repository';
 import { StatusesRepository } from '../database/repositories/statuses.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import type { MessageRow, NewReportEvidenceRow } from '../database/schema';
+import { AntivirusPort, AntivirusUnavailableError } from '../media/antivirus.port';
+import { sniff } from '../media/content-sniffer';
 import { evidenceAad, MediaService } from '../media/media.service';
 import { statusAad } from '../statuses/statuses.service';
 import { BlobStorage } from '../storage/blob-storage.port';
@@ -49,6 +51,7 @@ export class ReportsService {
     private readonly storage: BlobStorage,
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
+    private readonly antivirus: AntivirusPort,
   ) {}
 
   async create(reporterId: string, input: CreateReportInput, now = new Date()): Promise<MyReportDto> {
@@ -170,8 +173,46 @@ export class ReportsService {
       originalCreatedAt: message.createdAt,
     };
     if (content.t !== 'file') return { row: base, storageKey: null };
-    // Los adjuntos cifrados de extremo a extremo llegan en el paso siguiente (7B.3).
-    throw new BadRequestException(INVALID_EVIDENCE);
+    return this.copyE2eeFile(base, message, content.file);
+  }
+
+  /**
+   * Archivo de un mensaje cifrado: con la clave revelada (y comprometida en el franqueo) el servidor abre
+   * la copia y la vuelve a cifrar como evidencia. El tipo se determina por el CONTENIDO real: si no coincide
+   * con lo declarado, soporte solo lo puede descargar (nunca se muestra).
+   */
+  private async copyE2eeFile(base: NewReportEvidenceRow, message: MessageRow, file: E2eeFileRef): Promise<CollectedEvidence> {
+    const [attachment] = await this.attachments.findByMessageIds([message.id]);
+    if (!attachment?.e2ee || attachment.id !== file.id) throw new BadRequestException(INVALID_EVIDENCE);
+    let data: Buffer;
+    try {
+      data = Buffer.from(await decryptFile(await this.media.readBlob(attachment.storageKey, attachment.id), file.key, attachment.id));
+    } catch {
+      throw new BadRequestException(INVALID_EVIDENCE);
+    }
+    // El servidor nunca pudo escanear el original (estaba cifrado); la copia para soporte SÍ se escanea.
+    // Si tiene malware, no se guarda el archivo: queda registrado que estaba bloqueado (eso también es evidencia).
+    if (!(await this.isClean(data, base.id))) return { row: { ...base, kind: 'malware', sizeBytes: data.length }, storageKey: null };
+    const shown = evidenceType(file.kind, data);
+    const storageKey = randomUUID();
+    await this.storage.put(storageKey, this.crypto.encryptBlob(data, evidenceAad(base.id)));
+    return {
+      row: { ...base, kind: shown.kind, storageKey, mimeType: shown.mimeType, sizeBytes: data.length, width: file.w, height: file.h, durationMs: file.dur },
+      storageKey,
+    };
+  }
+
+  private async isClean(data: Buffer, evidenceId: string): Promise<boolean> {
+    try {
+      const result = await this.antivirus.scan(data);
+      if (!result.clean) await this.audit.log('upload.malware_blocked', { meta: { evidenceId, signature: result.signature } });
+      return result.clean;
+    } catch (error) {
+      if (error instanceof AntivirusUnavailableError) {
+        throw new ServiceUnavailableException({ code: 'ANTIVIRUS_UNAVAILABLE', message: 'No pudimos analizar el archivo adjunto. Probá de nuevo en un rato.' });
+      }
+      throw error;
+    }
   }
 
   /** Un estado de la persona denunciada que quien denuncia PUEDE VER ahora (vigente, sin bloqueo y con permiso). */
@@ -222,4 +263,18 @@ export class ReportsService {
       await this.storage.delete(key).catch((error: Error) => this.logger.error(`No se pudo borrar un archivo: ${error.message}`));
     }
   }
+}
+
+/** Tipos que soporte puede VER (el resto se ofrece solo como descarga). Lista cerrada por contenido real. */
+const SHOWN_TYPES: Record<string, Record<string, string>> = {
+  image: { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' },
+  sticker: { png: 'image/png', webp: 'image/webp' },
+  video: { mp4: 'video/mp4', webm: 'video/webm' },
+  audio: { webm: 'audio/webm', ogg: 'audio/ogg', mp4: 'audio/mp4', mp3: 'audio/mpeg' },
+};
+
+function evidenceType(declared: E2eeFileRef['kind'], data: Buffer): { kind: string; mimeType: string } {
+  const format = sniff(data)?.format;
+  const mimeType = format ? SHOWN_TYPES[declared]?.[format] : undefined;
+  return mimeType ? { kind: declared, mimeType } : { kind: 'file', mimeType: 'application/octet-stream' };
 }

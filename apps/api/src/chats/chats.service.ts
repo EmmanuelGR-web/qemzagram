@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
+  E2EE_UPLOAD_MAX_BYTES,
   GROUP_MAX_MEMBERS,
   type ChatMuteDuration,
   type ConversationDto,
@@ -8,6 +9,7 @@ import {
   type CallSummaryDto,
   type MessageDto,
   type SendAttachmentInput,
+  type SendE2eeAttachmentMeta,
   type SendE2eeMessageInput,
   type SendStickerInput,
   STICKER_SIZE,
@@ -44,6 +46,9 @@ const E2EE_UNAVAILABLE = { code: 'E2EE_UNAVAILABLE', message: 'No todas las pers
 /** El sobre no trae exactamente las claves actuales (alguien entró, salió o cambió sus claves): el dispositivo las vuelve a pedir. */
 const E2EE_KEYS_CHANGED = { code: 'E2EE_KEYS_CHANGED', message: 'Cambiaron las claves de este chat. Probá de nuevo.' };
 const MESSAGE_ID_TAKEN = { code: 'MESSAGE_ID_TAKEN', message: 'Ese mensaje ya existe' };
+/** Lo mínimo que puede pesar un archivo cifrado: iv (12) + etiqueta (16) + al menos 1 byte. */
+const E2EE_FILE_MIN_BYTES = 12 + 16 + 1;
+export const E2EE_MIME = 'application/octet-stream';
 
 const isMuted = (mutedUntil: Date | null, now = new Date()) => mutedUntil !== null && mutedUntil > now;
 /** Mismo aviso para las dos personas: no se revela quién bloqueó a quién. */
@@ -201,6 +206,7 @@ export class ChatsService {
   /** Envía un archivo (imagen, documento, nota de voz o video) con un epígrafe opcional. */
   async sendAttachment(userId: string, conversationId: string, input: SendAttachmentInput, file: UploadedInput): Promise<MessageDto> {
     await this.requireCanSend(userId, conversationId);
+    await this.assertNotE2ee(conversationId);
     const processed = await this.processor.process(input.kind, file, userId);
     return this.storeAndPublish(userId, conversationId, input.kind, processed, input.caption.trim());
   }
@@ -217,6 +223,7 @@ export class ChatsService {
       const row = await this.conversations.insertMessage(conversationId, userId, this.crypto.encryptText('', conversationId), input.code);
       return this.publish(this.toMessageDto(row, null), true);
     }
+    await this.assertNotE2ee(conversationId);
     const image = await this.stickers.readOwned(userId, input.stickerId);
     const processed: ProcessedMedia = { data: image, mimeType: 'image/webp', name: null, width: STICKER_SIZE, height: STICKER_SIZE, durationMs: null };
     return this.storeAndPublish(userId, conversationId, 'sticker', processed, '');
@@ -240,6 +247,45 @@ export class ChatsService {
     });
     if (!row) throw new ConflictException(MESSAGE_ID_TAKEN);
     return this.publish(this.toMessageDto(row, null), true);
+  }
+
+  /**
+   * Adjunto cifrado de extremo a extremo. El navegador ya le quitó los metadatos y lo cifró: el servidor
+   * recibe bytes que NO puede leer, así que no puede validar el tipo, pasarle antivirus ni recodificarlo
+   * (ver docs/SEGURIDAD.md §2.7). Solo controla tamaño, permisos y destinatarios, y lo guarda cifrado
+   * otra vez con su propia clave (dos capas).
+   */
+  async sendE2eeAttachment(userId: string, conversationId: string, meta: SendE2eeAttachmentMeta, blob: Buffer): Promise<MessageDto> {
+    await this.requireCanSend(userId, conversationId);
+    await this.assertEnvelopeKeys(userId, conversationId, meta.envelope);
+    if (blob.length < E2EE_FILE_MIN_BYTES || blob.length > E2EE_UPLOAD_MAX_BYTES) {
+      throw new BadRequestException({ code: 'INVALID_FILE', message: 'El archivo está vacío o es demasiado grande' });
+    }
+    if (await this.attachments.findById(meta.attachmentId)) throw new ConflictException(MESSAGE_ID_TAKEN);
+    const storageKey = randomUUID();
+    await this.storage.put(storageKey, this.crypto.encryptBlob(blob, meta.attachmentId));
+    try {
+      const created = await this.attachments.createE2eeWithMessage(
+        { id: meta.id, conversationId, senderId: userId, body: this.crypto.encryptText('', conversationId), e2ee: meta.envelope, franking: meta.commitment },
+        {
+          id: meta.attachmentId,
+          kind: 'file',
+          storageKey,
+          mimeType: E2EE_MIME,
+          sizeBytes: blob.length,
+          nameEncrypted: null,
+          width: null,
+          height: null,
+          durationMs: null,
+          e2ee: true,
+        },
+      );
+      if (!created) throw new ConflictException(MESSAGE_ID_TAKEN);
+      return this.publish(this.toMessageDto(created.message, created.attachment), true);
+    } catch (error) {
+      await this.deleteBlobs([storageKey]);
+      throw error;
+    }
   }
 
   /** Si el chat ya es de extremo a extremo, no se aceptan mensajes que el servidor pueda leer. */

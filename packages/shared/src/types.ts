@@ -59,6 +59,11 @@ export interface AttachmentDto {
   durationMs: number | null;
   url: string;
   expiresAt: string;
+  /**
+   * Archivo cifrado de extremo a extremo: el servidor solo tiene bytes cifrados (`kind` = "file",
+   * `mimeType` = octet-stream). El tipo real, el nombre y la clave están dentro del mensaje cifrado.
+   */
+  e2ee: boolean;
 }
 
 export interface MessageDto {

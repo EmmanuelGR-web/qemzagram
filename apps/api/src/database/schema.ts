@@ -205,6 +205,8 @@ export const attachments = pgTable(
     width: integer('width'),
     height: integer('height'),
     durationMs: integer('duration_ms'),
+    /** Cifrado de extremo a extremo: el servidor guarda bytes que no puede leer (ni escanear). */
+    e2ee: boolean('e2ee').notNull().default(false),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (table) => [index('attachments_conversation_idx').on(table.conversationId)],

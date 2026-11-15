@@ -28,6 +28,26 @@ export class AttachmentsRepository {
     });
   }
 
+  /**
+   * Mensaje cifrado de extremo a extremo + su adjunto, en una transacción. El id del mensaje lo eligió el
+   * dispositivo: si ya existe, no se guarda nada y devuelve undefined.
+   */
+  async createE2eeWithMessage(
+    message: Pick<MessageRow, 'id' | 'conversationId' | 'senderId' | 'body' | 'e2ee' | 'franking'>,
+    fields: AttachmentFields,
+  ): Promise<{ message: MessageRow; attachment: AttachmentRow } | undefined> {
+    return this.db.transaction(async (tx) => {
+      const [inserted] = await tx.insert(messages).values(message).onConflictDoNothing().returning();
+      if (!inserted) return undefined;
+      const [attachment] = await tx
+        .insert(attachments)
+        .values({ ...fields, messageId: inserted.id, conversationId: message.conversationId, uploaderId: message.senderId })
+        .returning();
+      if (!attachment) throw new Error('No se pudo guardar el adjunto');
+      return { message: inserted, attachment };
+    });
+  }
+
   async findById(id: string): Promise<AttachmentRow | undefined> {
     const [row] = await this.db.select().from(attachments).where(eq(attachments.id, id)).limit(1);
     return row;

@@ -5,7 +5,8 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, StickerIcon, TrashIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
-import { useMessageSender } from '@/lib/e2ee-messages';
+import { useAttachmentSender, useMessageSender } from '@/lib/e2ee-messages';
+import { sanitizeDocument, sanitizeImage, sanitizeMedia, type SanitizedFile } from '@/lib/media-sanitize';
 import { formatBytes, formatDuration, kindForFile } from '@/lib/messages';
 import { useVoiceRecorder } from '@/lib/use-voice-recorder';
 import { CameraCapture, cameraSupported } from './CameraCapture';
@@ -42,6 +43,7 @@ export function Composer({ conversationId, onSent }: Props) {
   const voice = useVoiceRecorder();
   const recording = voice.state === 'recording';
   const sendMessage = useMessageSender(conversationId);
+  const sendAttachment = useAttachmentSender(conversationId);
 
   async function sendText(event?: FormEvent) {
     event?.preventDefault();
@@ -83,25 +85,33 @@ export function Composer({ conversationId, onSent }: Props) {
 
   async function sendFile(caption: string) {
     if (!pending) return;
-    const form = new FormData();
-    form.append('kind', pending.kind);
-    form.append('caption', caption);
-    form.append('file', pending.file);
-    onSent(await api<MessageDto>(`/chats/${conversationId}/attachments`, { form }));
+    const { file, kind } = pending;
+    const legacy = () => {
+      const form = new FormData();
+      form.append('kind', kind);
+      form.append('caption', caption);
+      form.append('file', file);
+      return api<MessageDto>(`/chats/${conversationId}/attachments`, { form });
+    };
+    onSent(await sendAttachment(() => prepareFile(file, kind), caption, legacy));
     closePreview();
   }
 
   /** Termina la grabación y la envía como nota de voz (el servidor la convierte y le quita metadatos). */
   async function sendVoice() {
+    const recordedMs = voice.seconds * 1000;
     const result = await voice.stop();
     if (!result) return;
     setSending(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append('kind', 'audio');
-      form.append('file', new File([result.blob], result.fileName, { type: result.blob.type }));
-      onSent(await api<MessageDto>(`/chats/${conversationId}/attachments`, { form }));
+      const legacy = () => {
+        const form = new FormData();
+        form.append('kind', 'audio');
+        form.append('file', new File([result.blob], result.fileName, { type: result.blob.type }));
+        return api<MessageDto>(`/chats/${conversationId}/attachments`, { form });
+      };
+      onSent(await sendAttachment(() => sanitizeMedia(result.blob, 'audio', recordedMs), '', legacy));
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -242,6 +252,13 @@ export function Composer({ conversationId, onSent }: Props) {
       {pending && <AttachmentPreview pending={pending} onCancel={closePreview} onSend={sendFile} />}
     </>
   );
+}
+
+/** Limpieza en el dispositivo según el tipo (solo para chats de extremo a extremo). */
+function prepareFile(file: File, kind: UploadKind): Promise<SanitizedFile> {
+  if (kind === 'image') return sanitizeImage(file, 'image');
+  if (kind === 'video' || kind === 'audio') return sanitizeMedia(file, kind);
+  return sanitizeDocument(file);
 }
 
 /** Vista previa antes de enviar, con epígrafe opcional. */
