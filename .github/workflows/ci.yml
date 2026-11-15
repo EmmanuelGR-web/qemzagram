@@ -84,7 +84,7 @@ jobs:
       # Solo si se pidió arm64 a mano: QEMU emula ARM en el servidor amd64 de GitHub.
       - name: Preparar emulación ARM64
         if: env.PLATAFORMA == 'linux/arm64'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 
