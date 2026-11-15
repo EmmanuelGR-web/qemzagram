@@ -89,7 +89,12 @@ jobs:
           platforms: arm64
 
       - name: Revisar los scripts de backup (shellcheck)
-        run: shellcheck --shell=sh deploy/backup/*.sh
+        # Cada aviso sale como anotación de GitHub (se ve en el resumen de la corrida, junto a la línea del script).
+        # "shell: bash" activa pipefail: si shellcheck encuentra algo, el paso falla aunque sed termine bien.
+        shell: bash
+        run: >-
+          shellcheck --shell=sh --format=gcc deploy/backup/*.sh
+          | sed -E 's/^([^:]+):([0-9]+):([0-9]+): [a-z]+: (.*)$/::error file=\1,line=\2,col=\3::\4/'
 
       # Genera un deploy/.env de prueba con secretos aleatorios descartables (el mismo script que en producción)
       # y completa los datos que en el servidor pone la persona. Después valida el compose completo.

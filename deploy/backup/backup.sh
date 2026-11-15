@@ -15,8 +15,11 @@ umask 077
 : "${BACKUP_PATH:?Falta BACKUP_PATH (bucket/carpeta de destino)}"
 KEEP_DAYS="${BACKUP_KEEP_DAYS:-0}"
 
+# El aviso es opcional: si healthchecks.io no responde, el backup sigue igual.
 ping() {
-  [ -n "${BACKUP_PING_URL:-}" ] && wget -q -T 10 -O /dev/null "${BACKUP_PING_URL}$1" || true
+  if [ -n "${BACKUP_PING_URL:-}" ]; then
+    wget -q -T 10 -O /dev/null "${BACKUP_PING_URL}$1" || true
+  fi
 }
 
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
@@ -26,7 +29,10 @@ WORK=$(mktemp -d /tmp/qzbackup.XXXXXX)
 finish() {
   code=$?
   rm -rf "$WORK"
-  [ "$code" -ne 0 ] && { echo "✗ Backup ${NAME} falló (código ${code})"; ping /fail; }
+  if [ "$code" -ne 0 ]; then
+    echo "✗ Backup ${NAME} falló (código ${code})"
+    ping /fail
+  fi
   exit "$code"
 }
 trap finish EXIT
