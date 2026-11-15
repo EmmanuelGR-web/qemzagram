@@ -37,7 +37,7 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Descargar el código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -77,7 +77,7 @@ jobs:
       PLATAFORMA: ${{ inputs.plataforma || 'linux/amd64' }}
     steps:
       - name: Descargar el código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
