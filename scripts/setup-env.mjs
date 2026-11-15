@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 // Crea apps/api/.env con secretos aleatorios a partir de apps/api/.env.example.
 // Uso (desde la raíz):  npm run setup        |   Opción:  npm run setup -- --pglite   (sin Docker)
-import { randomBytes } from 'node:crypto';
+// Producción:  node scripts/setup-env.mjs --produccion   → crea deploy/.env (ver docs/DESPLIEGUE.md)
+// Solo usa módulos de Node: se puede correr en el servidor dentro de un contenedor, sin npm install.
+import { createECDH, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const example = join(root, 'apps', 'api', '.env.example');
-const target = join(root, 'apps', 'api', '.env');
+const production = process.argv.includes('--produccion');
+const folder = production ? join(root, 'deploy') : join(root, 'apps', 'api');
+const label = production ? 'deploy/.env' : 'apps/api/.env';
+const example = join(folder, '.env.example');
+const target = join(folder, '.env');
 
 if (existsSync(target)) {
-  console.log('✔ apps/api/.env ya existe: no se modifica (para regenerarlo, borralo primero).');
+  console.log(`✔ ${label} ya existe: no se modifica (para regenerarlo, borralo primero).`);
   process.exit(0);
 }
 
@@ -21,16 +26,24 @@ const secrets = {
   JWT_TICKET_SECRET: randomBytes(32).toString('hex'),
   PASSWORD_PEPPER: randomBytes(24).toString('hex'),
   MESSAGE_ENC_KEY: randomBytes(32).toString('base64'),
+  ...vapidKeys(),
 };
+if (production) {
+  Object.assign(secrets, {
+    POSTGRES_PASSWORD: randomBytes(24).toString('hex'),
+    LIVEKIT_API_KEY: `qz${randomBytes(8).toString('hex')}`,
+    LIVEKIT_API_SECRET: randomBytes(32).toString('hex'),
+  });
+}
 
-// Claves VAPID para notificaciones push (si web-push ya está instalado).
-try {
-  const { default: webPush } = await import('web-push');
-  const vapid = webPush.generateVAPIDKeys();
-  secrets.VAPID_PUBLIC_KEY = vapid.publicKey;
-  secrets.VAPID_PRIVATE_KEY = vapid.privateKey;
-} catch {
-  console.log('  (sin claves VAPID: corré "npm install" y después "npx web-push generate-vapid-keys")');
+/** Claves VAPID (Web Push): un par P-256 en base64url, igual que `npx web-push generate-vapid-keys`. */
+function vapidKeys() {
+  const ecdh = createECDH('prime256v1');
+  ecdh.generateKeys();
+  const privateKey = Buffer.alloc(32);
+  const raw = ecdh.getPrivateKey();
+  raw.copy(privateKey, 32 - raw.length); // con ceros a la izquierda si hiciera falta
+  return { VAPID_PUBLIC_KEY: ecdh.getPublicKey().toString('base64url'), VAPID_PRIVATE_KEY: privateKey.toString('base64url') };
 }
 
 let content = readFileSync(example, 'utf8');
@@ -44,6 +57,7 @@ if (usePglite) {
 }
 
 writeFileSync(target, content, { mode: 0o600 });
-console.log('✔ Creado apps/api/.env con secretos aleatorios.');
-console.log(usePglite ? '  Modo sin Docker (PGlite): los correos se imprimen en la consola de la API.' : '  Siguiente paso: npm run db:up');
+console.log(`✔ Creado ${label} con secretos aleatorios.`);
+if (production) console.log('  Siguiente paso: completá DOMAIN, ACME_EMAIL, SMTP_* y S3_* (marcados con ← COMPLETAR).');
+else console.log(usePglite ? '  Modo sin Docker (PGlite): los correos se imprimen en la consola de la API.' : '  Siguiente paso: npm run db:up');
 console.log('  ⚠ Guardá una copia segura de PASSWORD_PEPPER y MESSAGE_ENC_KEY: si se pierden, no se recuperan datos.');

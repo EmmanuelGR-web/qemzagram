@@ -20,7 +20,7 @@ Leé este archivo completo antes de tocar código. Es la fuente de verdad sobre 
 ## 3. Estado actual y hoja de ruta
 
 - ✅ **Fase 1 (hecha):** cuentas con correo verificado, login, recuperación de contraseña, perfil (foto + portada, público/privado), agenda por tag, chats 1 a 1 y grupos (máx. 10) en tiempo real, mensajes cifrados en la base, ajustes, pausar/dar de baja la cuenta.
-- ✅ **Fase 2 (hecha):** imágenes (cámara/galería), videos, notas de voz, documentos, stickers generales y propios. Módulos `media/` y `stickers/`; archivos cifrados detrás del puerto `BlobStorage` (hoy disco local; falta adaptador S3/R2), URLs firmadas, antivirus ClamAV (`AntivirusPort`) y ffmpeg (`MediaTranscoder`). Ver `docs/SEGURIDAD.md` §2.1.
+- ✅ **Fase 2 (hecha):** imágenes (cámara/galería), videos, notas de voz, documentos, stickers generales y propios. Módulos `media/` y `stickers/`; archivos cifrados detrás del puerto `BlobStorage` (disco local o S3 compatible con `STORAGE_DRIVER`), URLs firmadas, antivirus ClamAV (`AntivirusPort`) y ffmpeg (`MediaTranscoder`). Ver `docs/SEGURIDAD.md` §2.1.
 - 🔜 Fases 3–7: estados 24 h, llamadas/videollamadas (WebRTC + SFU), personas cercanas, panel de soporte/denuncias/bajas, E2EE y endurecimiento.
 - Detalle completo en [`docs/FASES.md`](docs/FASES.md). **Trabajá una fase a la vez** y no empieces la siguiente sin confirmación del usuario.
 

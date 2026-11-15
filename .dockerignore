@@ -1,0 +1,19 @@
+# Nada de esto entra a las imágenes: dependencias de Windows, builds viejos, datos locales y SECRETOS.
+**/node_modules
+**/dist
+**/.next
+**/*.tsbuildinfo
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+apps/api/uploads
+apps/api/media
+apps/api/.data
+deploy/.env
+deploy/backups
+.git
+.github
+.vscode
+docs
+*.log

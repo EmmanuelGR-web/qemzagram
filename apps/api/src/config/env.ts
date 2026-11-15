@@ -26,6 +26,21 @@ const envSchema = z.object({
   UPLOAD_DIR: z.string().default('./uploads'),
   /** Adjuntos de los chats y stickers propios: cifrados y FUERA de la carpeta pública. */
   MEDIA_DIR: z.string().default('./media'),
+  /**
+   * Dónde se guardan los adjuntos cifrados: `local` (carpeta MEDIA_DIR) o `s3` (Backblaze B2, Cloudflare R2,
+   * MinIO, AWS…). El bucket S3 tiene que ser PRIVADO: los archivos se sirven solo por la API.
+   */
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  /** Dirección del servicio S3, por ejemplo https://s3.us-east-005.backblazeb2.com */
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().regex(/^[a-z0-9-]{2,40}$/, 'Región inválida').default('us-east-1'),
+  S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, 'Nombre de bucket inválido').optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  /** Carpeta dentro del bucket (termina en "/"). */
+  S3_PREFIX: z.string().regex(/^([a-z0-9_-]+\/)*$/, 'Usá algo como media/').default('media/'),
+  /** true = https://servidor/bucket/clave (B2, MinIO). false = https://bucket.servidor/clave. */
+  S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('true'),
   /** Antivirus ClamAV (clamd). Obligatorio en producción. */
   CLAMAV_HOST: z.string().optional(),
   CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
@@ -60,6 +75,14 @@ const envSchema = z.object({
   }
   if (env.NODE_ENV === 'production' && !env.CLAMAV_HOST) {
     context.addIssue({ code: 'custom', path: ['CLAMAV_HOST'], message: 'En producción el antivirus (ClamAV) es obligatorio' });
+  }
+  if (env.STORAGE_DRIVER === 's3') {
+    for (const name of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) {
+      if (!env[name]) context.addIssue({ code: 'custom', path: [name], message: 'Obligatoria con STORAGE_DRIVER=s3' });
+    }
+    if (env.NODE_ENV === 'production' && env.S3_ENDPOINT && !env.S3_ENDPOINT.startsWith('https://')) {
+      context.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'En producción el almacenamiento S3 tiene que usar https://' });
+    }
   }
   if (Boolean(env.LIVEKIT_API_KEY) !== Boolean(env.LIVEKIT_API_SECRET)) {
     context.addIssue({ code: 'custom', path: ['LIVEKIT_API_SECRET'], message: 'LIVEKIT_API_KEY y LIVEKIT_API_SECRET van juntos' });

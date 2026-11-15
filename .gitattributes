@@ -2,3 +2,5 @@
 *.png binary
 *.jpg binary
 *.ico binary
+# Los scripts de shell corren en Linux (contenedores): siempre con fin de línea LF.
+*.sh text eol=lf

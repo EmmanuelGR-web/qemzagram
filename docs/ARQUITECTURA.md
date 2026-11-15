@@ -45,7 +45,7 @@ descarga ─► MediaController GET /media/a/:id?exp&sig ─► MediaService: fi
           ─► BlobStorage.get ─► decryptBlob ─► respuesta con rangos, nosniff y CSP sandbox
 ```
 
-Para agregar un proveedor de almacenamiento (S3/R2) se crea otra clase que extienda `BlobStorage` y se cambia el `provide` en `storage.module.ts`; nada más cambia.
+Hay dos adaptadores de `BlobStorage`: `LocalBlobStorage` (carpeta `MEDIA_DIR`) y `S3BlobStorage` (cualquier servicio compatible con S3, con la firma SigV4 de `s3-signer.ts`). `storage.module.ts` elige uno según `STORAGE_DRIVER`; el resto del código no se entera.
 
 ## Estados (Fase 3)
 

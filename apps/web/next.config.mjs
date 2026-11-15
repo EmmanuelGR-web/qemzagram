@@ -1,3 +1,6 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 // La política de seguridad de contenido (CSP) con nonce la arma `src/proxy.ts` en cada respuesta (Fase 7A).
 
@@ -5,6 +8,11 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // En la imagen Docker (NEXT_OUTPUT=standalone) Next arma un servidor mínimo con solo los archivos necesarios.
+  // La raíz del monorepo hace falta para que incluya packages/shared.
+  ...(process.env.NEXT_OUTPUT === 'standalone'
+    ? { output: 'standalone', outputFileTracingRoot: join(dirname(fileURLToPath(import.meta.url)), '..', '..') }
+    : {}),
   // El navegador solo habla con este mismo origen: las cookies de sesión quedan "first-party".
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];

@@ -9,7 +9,7 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ Imágenes (cámara del celular o galería), videos, notas de voz y documentos adjuntos, con epígrafe opcional.
 - ✅ **URLs firmadas con vencimiento** + sesión y membresía, límites de tamaño, validación de contenido real, **antivirus ClamAV** (obligatorio en producción), eliminación de metadatos (ffmpeg para audio y video) y cifrado de los archivos en reposo.
 - ✅ **Stickers:** pack general de 12 stickers originales + stickers propios (imagen → WebP 512×512) en "Mis stickers".
-- 🔜 Pendiente para producción: adaptador de almacenamiento externo S3/R2 (hoy: disco local detrás del puerto `BlobStorage`). Ver `SEGURIDAD.md` §2.1.
+- ✅ Almacenamiento externo S3 compatible (Backblaze B2, R2, MinIO, AWS) con `STORAGE_DRIVER=s3`, o disco local. Ver `SEGURIDAD.md` §2.1.
 
 ## ✅ Fase 3 — Estados (24 horas)
 - ✅ Estados de **texto** (con fondos de una lista cerrada), **foto** y **video** (hasta 60 s), con epígrafe opcional. Cámara dentro de la app o galería.

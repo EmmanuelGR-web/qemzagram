@@ -1,0 +1,40 @@
+# Caddy: HTTPS automático con Let's Encrypt para el sitio y para el servidor de llamadas.
+# DOMAIN y ACME_EMAIL vienen de deploy/.env (por ejemplo DOMAIN=qemzagram.duckdns.org).
+{
+	email {$ACME_EMAIL}
+	# HTTP/1.1, HTTP/2 y HTTP/3.
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# API: directo de Caddy a Nest (sin pasar por Next), sacando el prefijo /api.
+	# Caddy reemplaza el X-Forwarded-For que mande el cliente por su IP real: no se puede falsificar.
+	handle_path /api/* {
+		reverse_proxy api:4000
+	}
+
+	# Tiempo real (Socket.IO) en el mismo dominio.
+	handle /socket.io/* {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header -Server
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Señalización de LiveKit (wss://livekit.DOMINIO). El audio y el video van por 7881/tcp y 7882/udp.
+livekit.{$DOMAIN} {
+	reverse_proxy livekit:7880
+	header -Server
+}

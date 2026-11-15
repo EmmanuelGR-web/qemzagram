@@ -47,7 +47,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 **Límites honestos de la Fase 2:**
 - Los **documentos no se modifican**: un PDF o un Word puede conservar metadatos internos (autor, empresa) y un PDF puede contener JavaScript (por eso se descarga y nunca se abre dentro de la app). El antivirus es la defensa principal.
 - Un ZIP se valida solo por su firma: su contenido lo revisa el antivirus.
-- El almacenamiento es **disco local** detrás del puerto `BlobStorage`. Para producción falta el adaptador S3/R2 (con URLs prefirmadas del proveedor) y backups.
+- Almacenamiento detrás del puerto `BlobStorage`: **disco local** o **S3 compatible** (`STORAGE_DRIVER=s3`: Backblaze B2, Cloudflare R2, MinIO, AWS). El adaptador S3 firma cada petición con AWS Signature V4 **incluido el hash del cuerpo** (sin el SDK de AWS: cero dependencias nuevas), exige `https://` en producción, no sigue redirecciones y sus errores nunca incluyen credenciales. El proveedor solo recibe **bytes ya cifrados** con `encryptBlob` y claves UUID: no ve el contenido, el nombre ni el tipo de los archivos. El bucket tiene que ser **privado** y la clave de acceso, **restringida a ese bucket**: los archivos se siguen sirviendo solo por la API (URL firmada + permiso), nunca con enlaces directos al proveedor. Las fotos de perfil y portadas (públicas, re-codificadas) siguen en el disco del servidor (`UPLOAD_DIR`).
 - Los archivos se procesan **en memoria** (hasta 50 MB por subida, límite de peticiones por persona). Con mucho tráfico conviene una cola de trabajos.
 
 ## 2.2 Estados de 24 horas (Fase 3)
@@ -209,7 +209,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | CSP estricta en estilos | Scripts con nonce ✅; estilos con `'unsafe-inline'` | Pasar los atributos `style` a clases |
 | WAF (firewall de aplicación) | No (es del hosting) | Al desplegar |
 | Análisis antivirus de archivos adjuntos | ✅ Cliente ClamAV implementado y obligatorio en producción. En desarrollo puede quedar desactivado (aviso en consola) | Instalar `clamd` en el servidor |
-| Almacenamiento externo de archivos (S3/R2) | Disco local cifrado detrás del puerto `BlobStorage` | Adaptador S3/R2 al elegir proveedor |
+| Almacenamiento externo de archivos (S3/R2) | ✅ Adaptador S3 propio (SigV4) probado con un servidor falso que verifica la firma y con SeaweedFS real; disco local sigue disponible | Probar con el bucket de Backblaze B2 del despliegue |
 | Servidor de llamadas en producción | LiveKit en Docker solo para desarrollo | LiveKit propio (wss, credenciales propias, puertos UDP) o LiveKit Cloud |
 | Llamadas E2EE | ✅ En chats cifrados (cifrado por cuadro de LiveKit); sin probar con un LiveKit real | Probar con el LiveKit del despliegue |
 | Antivirus en adjuntos cifrados de extremo a extremo | No es posible (el servidor no ve el contenido); sí se escanea la copia de una denuncia | Asumido por diseño |
@@ -241,7 +241,7 @@ Esto es **orientación general, no asesoramiento legal**:
 - [ ] HTTPS en todo (HSTS), dominio propio, SPF/DKIM/DMARC para los correos
 - [ ] Base de datos gestionada con backups probados y cifrado en reposo
 - [ ] Secretos en un gestor; plan de rotación de claves
-- [ ] Almacenamiento externo para fotos y archivos (adaptador S3/R2 de `BlobStorage`)
+- [ ] `STORAGE_DRIVER=s3` con bucket **privado** y clave de acceso restringida a ese bucket
 - [ ] ClamAV (`clamd`) y ffmpeg instalados en el servidor, con firmas antivirus actualizadas
 - [ ] 2FA activado en todas las cuentas de soporte; `POW_ENABLED=true` y `REDIS_URL` si hay más de una instancia
 - [ ] WAF delante de la web y la API

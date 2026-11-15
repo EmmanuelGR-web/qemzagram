@@ -1,0 +1,209 @@
+# Qemzagram en PRODUCCIÓN, todo en un solo servidor (pensado para Oracle Cloud Always Free, ARM64).
+# Guía paso a paso: docs/DESPLIEGUE.md
+#
+#   cd deploy
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Solo Caddy (80/443) y los puertos de MEDIOS de LiveKit (7881/tcp y 7882/udp) quedan abiertos a internet.
+# La base de datos, la API, la web y el antivirus solo se ven entre ellos, dentro de la red de Docker.
+name: qemzagram
+
+x-logging: &logging
+  # Los logs rotan solos (si no, llenan el disco con el tiempo).
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
+services:
+  # Proxy con HTTPS automático (certificados gratis de Let's Encrypt, renovados solos).
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
+    environment:
+      DOMAIN: ${DOMAIN:?Definí DOMAIN en deploy/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?Definí ACME_EMAIL en deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [web, api]
+    logging: *logging
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        PUBLIC_URL: https://${DOMAIN}
+        LIVEKIT_PUBLIC_URL: wss://livekit.${DOMAIN}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      # Caché de Next (única carpeta de la imagen donde escribe).
+      - type: tmpfs
+        target: /app/apps/web/.next/cache
+        tmpfs:
+          mode: 01777
+    security_opt: ['no-new-privileges:true']
+    depends_on: [api]
+    logging: *logging
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    # Solo las variables que usa la API (NO recibe, por ejemplo, las credenciales de los backups).
+    # Valores en deploy/.env, generado con `node scripts/setup-env.mjs --produccion`.
+    environment:
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Falta JWT_ACCESS_SECRET}
+      JWT_TICKET_SECRET: ${JWT_TICKET_SECRET:?Falta JWT_TICKET_SECRET}
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER:?Falta PASSWORD_PEPPER}
+      MESSAGE_ENC_KEY: ${MESSAGE_ENC_KEY:?Falta MESSAGE_ENC_KEY}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_PREFIX: ${S3_PREFIX:-media/}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:soporte@example.com}
+      POW_ENABLED: 'true'
+      POW_DIFFICULTY: ${POW_DIFFICULTY:-16}
+      NODE_ENV: production
+      DATABASE_URL: postgres://qemzagram:${POSTGRES_PASSWORD}@db:5432/qemzagram
+      WEB_ORIGIN: https://${DOMAIN}
+      # La IP real del usuario: se confía solo en los proxies de la red interna (Caddy).
+      TRUST_PROXY: loopback, uniquelocal
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: '3310'
+      LIVEKIT_URL: wss://livekit.${DOMAIN}
+      LIVEKIT_API_URL: http://livekit:7880
+      RUN_MIGRATIONS: 'true'
+    volumes:
+      - api-uploads:/data/uploads
+      - api-media:/data/media
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ['no-new-privileges:true']
+    depends_on:
+      db:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    logging: *logging
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qemzagram
+      POSTGRES_DB: qemzagram
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definí POSTGRES_PASSWORD en deploy/.env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U qemzagram -d qemzagram']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ['no-new-privileges:true']
+    logging: *logging
+
+  # Antivirus de los adjuntos (no cifrados de extremo a extremo). Descarga firmas nuevas solo, varias veces por día.
+  # La primera vez tarda unos minutos en arrancar (baja ~300 MB de firmas). Usa ~1,5 GB de RAM.
+  clamav:
+    image: clamav/clamav-debian:1.4
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+    logging: *logging
+
+  # Servidor de llamadas (SFU). La señalización va por Caddy (wss://livekit.DOMINIO); el audio y el
+  # video van directo por 7881/tcp y 7882/udp (ya cifrados con DTLS-SRTP, y además E2EE en chats cifrados).
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    restart: unless-stopped
+    environment:
+      # LiveKit lee su configuración (YAML) de esta variable.
+      LIVEKIT_CONFIG: |
+        port: 7880
+        log_level: warn
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: true
+        keys:
+          ${LIVEKIT_API_KEY:?Definí LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET:?Definí LIVEKIT_API_SECRET}
+        webhook:
+          api_key: ${LIVEKIT_API_KEY}
+          urls:
+            - http://api:4000/calls/livekit-webhook
+    ports:
+      - '7881:7881'
+      - '7882:7882/udp'
+    security_opt: ['no-new-privileges:true']
+    logging: *logging
+
+  # Backups diarios cifrados (age) de la base y los archivos en disco, subidos a un bucket APARTE.
+  # Ver docs/DESPLIEGUE.md §11 (incluye la prueba de restauración).
+  backup:
+    build: ./backup
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://qemzagram:${POSTGRES_PASSWORD}@db:5432/qemzagram
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?Definí BACKUP_AGE_RECIPIENT (clave pública age)}
+      BACKUP_PATH: ${BACKUP_S3_BUCKET:?Definí BACKUP_S3_BUCKET}/backups
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-0}
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-6}
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+      # Destino "destino:" de rclone (S3 compatible: Backblaze B2).
+      RCLONE_CONFIG_DESTINO_TYPE: s3
+      RCLONE_CONFIG_DESTINO_PROVIDER: Other
+      RCLONE_CONFIG_DESTINO_ENDPOINT: ${BACKUP_S3_ENDPOINT:?Definí BACKUP_S3_ENDPOINT}
+      RCLONE_CONFIG_DESTINO_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      RCLONE_CONFIG_DESTINO_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:?Definí BACKUP_S3_ACCESS_KEY_ID}
+      RCLONE_CONFIG_DESTINO_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:?Definí BACKUP_S3_SECRET_ACCESS_KEY}
+      RCLONE_CONFIG_DESTINO_NO_CHECK_BUCKET: 'true'
+    volumes:
+      - api-uploads:/data/uploads:ro
+      - api-media:/data/media:ro
+    # Solo los permisos necesarios para leer los archivos de la API y levantar el Postgres de prueba.
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE, CHOWN, FOWNER, SETUID, SETGID]
+    security_opt: ['no-new-privileges:true']
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  caddy-data:
+  caddy-config:
+  db-data:
+  api-uploads:
+  api-media:
+  clamav-db:

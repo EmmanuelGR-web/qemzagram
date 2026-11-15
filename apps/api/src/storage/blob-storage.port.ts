@@ -2,8 +2,8 @@
  * Puerto de almacenamiento de archivos privados (adjuntos y stickers propios).
  *
  * Los servicios dependen de esta abstracción y no del disco ni de un proveedor concreto:
- * hoy se usa `LocalBlobStorage` (disco local) y, cuando se elija proveedor, se agrega un
- * adaptador S3/R2 sin tocar el resto del código (principio de inversión de dependencias).
+ * `LocalBlobStorage` (disco local) o `S3BlobStorage` (Backblaze B2, R2, MinIO…), según STORAGE_DRIVER,
+ * sin tocar el resto del código (principio de inversión de dependencias).
  *
  * Los datos que recibe YA están cifrados (ver `CryptoService.encryptBlob`): el almacenamiento
  * nunca ve el contenido real de los archivos.
