@@ -144,6 +144,7 @@ describe('Cifrado de extremo a extremo: claves de cuenta y código de recuperaci
     const rows = await ctx.db.select().from(e2eeKeys).where(eq(e2eeKeys.userId, dana.id));
     expect(rows.every((row) => row.revokedAt !== null && row.backup === null)).toBe(true);
     const keys = (await ana.agent.get(`/e2ee/conversations/${chat}/keys`).expect(200)).body as ConversationKeysDto;
-    expect(keys.members.find((member) => member.userId === dana.id)?.key).toBeNull();
+    // La cuenta dada de baja ya no figura entre los destinatarios.
+    expect(keys.members.some((member) => member.userId === dana.id)).toBe(false);
   });
 });

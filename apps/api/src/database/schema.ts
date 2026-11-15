@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { APPEAL_STATUSES, REPORT_EVIDENCE_SOURCES, REPORT_REASONS, REPORT_STATUSES } from '@qemzagram/shared';
+import { APPEAL_STATUSES, REPORT_EVIDENCE_SOURCES, REPORT_REASONS, REPORT_STATUSES, type E2eeEnvelope } from '@qemzagram/shared';
 import {
   boolean,
   index,
@@ -168,6 +168,10 @@ export const messages = pgTable(
     stickerCode: text('sticker_code'),
     /** Registro de una llamada en el chat ("Llamada perdida", "Videollamada · 3:12"). */
     callId: uuid('call_id').references((): AnyPgColumn => calls.id, { onDelete: 'set null' }),
+    /** Sobre cifrado de extremo a extremo (Fase 7B). Si existe, `body` va vacío: el servidor no puede leer el contenido. */
+    e2ee: jsonb('e2ee').$type<E2eeEnvelope>(),
+    /** Compromiso de franqueo (HMAC de quien envía): permite verificar una denuncia sin leer el chat. */
+    franking: text('franking'),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (table) => [index('messages_conversation_created_idx').on(table.conversationId, table.createdAt)],
@@ -469,6 +473,8 @@ export const reportEvidence = pgTable(
     width: integer('width'),
     height: integer('height'),
     durationMs: integer('duration_ms'),
+    /** Mensaje cifrado de extremo a extremo verificado con el franqueo. */
+    verified: boolean('verified').notNull().default(false),
     originalCreatedAt: ts('original_created_at').notNull(),
     createdAt: ts('created_at').notNull().defaultNow(),
   },

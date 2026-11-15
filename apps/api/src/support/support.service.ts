@@ -285,6 +285,7 @@ export class SupportService {
         row.storageKey && row.mimeType
           ? { url: this.urls.sign('r', row.id).url, mimeType: row.mimeType, width: row.width, height: row.height, durationMs: row.durationMs }
           : null,
+      verified: row.verified,
       originalCreatedAt: row.originalCreatedAt.toISOString(),
     };
   }

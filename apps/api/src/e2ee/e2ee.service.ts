@@ -58,17 +58,17 @@ export class E2eeService {
     return { key: toKeyDto(replaced), backup: replaced.backup };
   }
 
-  /** Claves activas de los miembros ACTUALES (para cifrar). Solo para miembros de la conversación. */
+  /** Claves activas de los miembros ACTUALES y activos (para cifrar). Solo para miembros de la conversación. */
   async conversationKeys(userId: string, conversationId: string): Promise<ConversationKeysDto> {
     if (!(await this.conversations.getMemberRole(conversationId, userId))) throw new NotFoundException(NOT_FOUND);
-    const members = await this.conversations.getMembers([conversationId]);
+    // Una cuenta dada de baja o suspendida no recibe mensajes cifrados nuevos: ni siquiera figura.
+    const members = (await this.conversations.getMembers([conversationId])).filter((member) => member.user.status === 'active');
     const active = await this.keys.activeForUsers(members.map((member) => member.user.id));
     const byUser = new Map(active.map((row) => [row.userId, row]));
     return {
       members: members.map((member) => {
         const row = byUser.get(member.user.id);
-        // Una cuenta dada de baja o suspendida no recibe mensajes cifrados nuevos.
-        return { userId: member.user.id, key: row && member.user.status === 'active' ? toKeyDto(row) : null };
+        return { userId: member.user.id, key: row ? toKeyDto(row) : null };
       }),
     };
   }

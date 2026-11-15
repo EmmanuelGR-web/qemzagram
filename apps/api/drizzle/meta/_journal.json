@@ -120,6 +120,13 @@
       "when": 1794703265572,
       "tag": "0016_claves_e2ee",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794703979054,
+      "tag": "0017_mensajes_e2ee",
+      "breakpoints": true
     }
   ]
 }

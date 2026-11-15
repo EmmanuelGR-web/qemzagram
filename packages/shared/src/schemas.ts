@@ -242,7 +242,20 @@ export const nearbyGreetSchema = z.object({ userId: z.string().uuid() }).strict(
 
 /* ---------- Fase 6: denuncias ---------- */
 
-const reportEvidenceSchema = z.object({ type: z.enum(REPORT_EVIDENCE_SOURCES), id: z.string().uuid() }).strict();
+/**
+ * `reveal`: SOLO para mensajes cifrados de extremo a extremo. El dispositivo de quien denuncia revela el
+ * contenido exacto y la clave de franqueo; el servidor comprueba que coincide con lo que se envió.
+ */
+const evidenceRevealSchema = z
+  .object({
+    content: z.string().min(1).max(MESSAGE_MAX_LENGTH * 6 + 2048),
+    fk: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Clave de franqueo inválida'),
+  })
+  .strict();
+const reportEvidenceSchema = z
+  .object({ type: z.enum(REPORT_EVIDENCE_SOURCES), id: z.string().uuid(), reveal: evidenceRevealSchema.optional() })
+  .strict()
+  .refine((item) => item.type === 'message' || !item.reveal, 'Solo los mensajes llevan revelación');
 
 /**
  * Denuncia contra una persona. La evidencia son mensajes o estados QUE ELIGE quien denuncia:

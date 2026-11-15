@@ -506,7 +506,22 @@ export interface MyE2eeKeyDto {
   backup: KeyBackup | null;
 }
 
-/** Claves de los miembros ACTUALES de una conversación. `key: null` = esa persona todavía no activó el cifrado. */
+/**
+ * Claves de los miembros ACTUALES y activos de una conversación (las cuentas suspendidas o dadas de baja no figuran).
+ * `key: null` = esa persona todavía no activó el cifrado: el chat no es de extremo a extremo.
+ */
 export interface ConversationKeysDto {
   members: { userId: string; key: E2eeKeyDto | null }[];
 }
+
+/* ---------- API: mensajes ---------- */
+
+/** Enviar un mensaje cifrado. El id lo genera el dispositivo (el cifrado queda atado a ese id). */
+export const sendE2eeMessageSchema = z
+  .object({
+    id: z.string().uuid(),
+    envelope: envelopeSchema,
+    commitment: b64(43).length(43),
+  })
+  .strict();
+export type SendE2eeMessageInput = z.infer<typeof sendE2eeMessageSchema>;

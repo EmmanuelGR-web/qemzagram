@@ -23,6 +23,7 @@ import {
   muteChatSchema,
   MESSAGE_MAX_LENGTH,
   sendAttachmentSchema,
+  sendE2eeMessageSchema,
   sendMessageSchema,
   sendStickerSchema,
   UPLOAD_MAX_BYTES_ANY,
@@ -31,6 +32,7 @@ import {
   type CreateGroupInput,
   type MessageDto,
   type SendAttachmentInput,
+  type SendE2eeMessageInput,
   type SendStickerInput,
 } from '@qemzagram/shared';
 import { memoryStorage } from 'multer';
@@ -127,6 +129,18 @@ export class ChatsController {
     @Body(new ZodPipe(sendMessageSchema)) body: { body: string },
   ): Promise<MessageDto> {
     return this.chats.sendMessage(user.id, id, body.body);
+  }
+
+  /** Mensaje cifrado de extremo a extremo (texto o sticker del pack): el servidor guarda el sobre sin poder leerlo. */
+  @Post(':id/e2ee/messages')
+  @HttpCode(201)
+  @Throttle({ default: { limit: 30, ttl: 10_000 } })
+  sendE2ee(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(sendE2eeMessageSchema)) body: SendE2eeMessageInput,
+  ): Promise<MessageDto> {
+    return this.chats.sendE2eeMessage(user.id, id, body);
   }
 
   @Post(':id/stickers')

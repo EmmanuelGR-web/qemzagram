@@ -1,3 +1,4 @@
+import type { E2eeEnvelope } from './e2ee';
 import type { ATTACHMENT_KINDS, CALL_END_REASONS, CHAT_MUTE_DURATIONS, REPORT_EVIDENCE_SOURCES, REPORT_STATUSES, ReportReason, APPEAL_STATUSES, MFA_METHODS, CALL_KINDS, CALL_PARTICIPANT_STATES, CALL_STATUSES, GeneralStickerCode, STATUS_KINDS, STATUS_MEDIA_KINDS, StatusAudience, StatusBackground, UPLOAD_KINDS } from './constants';
 import type { NearbyDistance, NearbyGreetingState } from './nearby';
 
@@ -71,6 +72,11 @@ export interface MessageDto {
   sticker: GeneralStickerCode | null;
   /** Registro de una llamada terminada (el mensaje lo "envía" quien llamó). */
   call: CallSummaryDto | null;
+  /**
+   * Mensaje cifrado de extremo a extremo (Fase 7B): el servidor no puede leerlo. `body` llega vacío y
+   * `sticker` en null; el contenido real (texto, sticker o datos del adjunto) está dentro del sobre.
+   */
+  e2ee: { envelope: E2eeEnvelope; commitment: string } | null;
   createdAt: string;
 }
 
@@ -351,6 +357,8 @@ export interface SupportEvidenceDto {
   body: string;
   sticker: GeneralStickerCode | null;
   media: { url: string; mimeType: string; width: number | null; height: number | null; durationMs: number | null } | null;
+  /** Mensaje cifrado de extremo a extremo cuya autenticidad se comprobó con el franqueo (nadie lo inventó ni lo editó). */
+  verified: boolean;
   originalCreatedAt: string;
 }
 

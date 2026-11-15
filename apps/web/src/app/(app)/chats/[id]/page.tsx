@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Avatar } from '@/components/Avatar';
 import { Composer } from '@/components/chat/Composer';
 import { MessageContent } from '@/components/chat/MessageContent';
-import { BackIcon, BellIcon, BellOffIcon, GroupIcon, PhoneIcon, VideoIcon } from '@/components/icons';
+import { BackIcon, BellIcon, BellOffIcon, GroupIcon, LockIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { ReportDialog } from '@/components/ReportDialog';
 import { api, errorMessage, refreshSession } from '@/lib/api';
@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth-context';
 import { unblockUser } from '@/lib/blocks';
 import { useCalls } from '@/lib/call-context';
 import { describeConversation, formatTime, mutedLabel, useChats } from '@/lib/chats-context';
-import { messagePreview } from '@/lib/messages';
+import { useConversationKeys, useViewMessages, viewPreview } from '@/lib/e2ee-messages';
 import { useRealtimeEvent } from '@/lib/realtime-context';
 import type { EvidenceCandidate } from '@/lib/reports';
 
@@ -42,6 +42,9 @@ export default function ConversationPage() {
   const [reporting, setReporting] = useState<PublicUser | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMediaRefresh = useRef(0);
+  const views = useViewMessages(messages);
+  const memberIds = conversation?.members.map((member) => member.user.id).sort().join(',') ?? '';
+  const e2ee = useConversationKeys(id, memberIds);
 
   useEffect(() => {
     let active = true;
@@ -121,13 +124,23 @@ export default function ConversationPage() {
     }
   }
 
-  /** Los últimos 30 mensajes de esa persona en este chat: quien denuncia elige cuáles adjuntar. */
+  /**
+   * Los últimos 30 mensajes de esa persona en este chat: quien denuncia elige cuáles adjuntar.
+   * Los cifrados de extremo a extremo llevan su "revelación" (contenido + clave de franqueo) para que
+   * soporte pueda comprobar que son auténticos; los que no se pudieron abrir no se ofrecen.
+   */
   const evidenceFrom = (authorId: string): EvidenceCandidate[] =>
-    messages
-      .filter((message) => message.senderId === authorId && !message.call)
+    views
+      .filter((message) => message.senderId === authorId && !message.call && (message.secure === 'server' || message.secure === 'e2ee'))
       .slice(-30)
       .reverse()
-      .map((message) => ({ type: 'message', id: message.id, label: messagePreview(message) || 'Mensaje', createdAt: message.createdAt }));
+      .map((message) => ({
+        type: 'message',
+        id: message.id,
+        label: viewPreview(message) || 'Mensaje',
+        createdAt: message.createdAt,
+        ...(message.reveal ? { reveal: message.reveal } : {}),
+      }));
 
   const info = describeConversation(conversation, user.id);
   const isGroup = conversation.type === 'group';
@@ -143,7 +156,14 @@ export default function ConversationPage() {
           {info.subject ? <Avatar user={info.subject} size={40} /> : <span className="group-avatar"><GroupIcon /></span>}
           <span>
             <strong>{info.title}</strong>
-            <small>{info.subtitle}</small>
+            <small>
+              {e2ee.complete && (
+                <span className="e2ee-badge" title="Cifrado de extremo a extremo: solo las personas del chat pueden leerlo">
+                  <LockIcon />
+                </span>
+              )}
+              {info.subtitle}
+            </small>
           </span>
         </button>
         <div className="conversation-actions">
@@ -197,14 +217,28 @@ export default function ConversationPage() {
         </div>
       )}
 
+      {e2ee.changed.length > 0 && (
+        <div className="call-banner key-change-banner" role="status">
+          <span className="call-banner-text">
+            <strong>
+              Cambió el código de seguridad de {e2ee.changed.map((memberId) => authors.get(memberId)?.displayName ?? 'un miembro').join(', ')}
+            </strong>
+            <small>Puede haber generado claves nuevas (por ejemplo, si perdió su código). Si dudás, comparen el código en «Información».</small>
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={e2ee.dismissChanged}>
+            Entendido
+          </button>
+        </div>
+      )}
+
       <div className="messages" role="log" aria-live="polite">
-        {messages.length === 0 && <p className="messages-empty">Todavía no hay mensajes. ¡Escribí el primero!</p>}
-        {messages.map((message) => {
+        {views.length === 0 && <p className="messages-empty">Todavía no hay mensajes. ¡Escribí el primero!</p>}
+        {views.map((message) => {
           const mine = message.senderId === user.id;
           const author = authors.get(message.senderId);
           return (
             <div key={message.id} className="message-row" data-mine={mine}>
-              <div className="bubble" data-sticker={Boolean(message.sticker) || message.attachment?.kind === 'sticker'}>
+              <div className="bubble" data-sticker={Boolean(message.sticker) || message.attachment?.kind === 'sticker' || message.file?.kind === 'sticker'}>
                 {isGroup && !mine && <span className="bubble-author">{author?.displayName ?? 'Ex miembro'}</span>}
                 <MessageContent message={message} onMediaError={onMediaError} />
                 <time>{formatTime(message.createdAt)}</time>
@@ -234,6 +268,7 @@ export default function ConversationPage() {
         <ConversationInfo
           conversation={conversation}
           myId={user.id}
+          e2ee={e2ee}
           onClose={() => setShowInfo(false)}
           onChanged={(updated) => {
             setConversation(updated);
@@ -273,12 +308,13 @@ export default function ConversationPage() {
 function ConversationInfo(props: {
   conversation: ConversationDto;
   myId: string;
+  e2ee: { complete: boolean; fingerprints: Map<string, string> };
   onClose: () => void;
   onChanged: (conversation: ConversationDto) => void;
   onLeft: () => void;
   onReport: (user: PublicUser) => void;
 }) {
-  const { conversation, myId, onClose, onChanged, onLeft, onReport } = props;
+  const { conversation, myId, e2ee, onClose, onChanged, onLeft, onReport } = props;
   const [tag, setTag] = useState('');
   const [error, setError] = useState<string | null>(null);
   const isGroup = conversation.type === 'group';
@@ -308,6 +344,12 @@ function ConversationInfo(props: {
   return (
     <Modal title={isGroup ? (conversation.title ?? 'Grupo') : 'Información'} onClose={onClose}>
       <p className="muted small">{conversation.members.length} {conversation.members.length === 1 ? 'miembro' : 'miembros'}</p>
+      <p className="muted small e2ee-note">
+        <LockIcon />{' '}
+        {e2ee.complete
+          ? 'Cifrado de extremo a extremo: solo las personas de este chat pueden leer los mensajes y ver los archivos. Para comprobar que nadie se hace pasar por alguien, comparen en persona su código de seguridad.'
+          : 'Todavía no es de extremo a extremo: alguien del chat no activó el cifrado. Los mensajes se guardan cifrados en el servidor.'}
+      </p>
       <ul className="pick-list">
         {conversation.members.map((member) => (
           <li key={member.user.id}>
@@ -319,6 +361,7 @@ function ConversationInfo(props: {
                   {member.user.id === myId && ' (vos)'}
                 </strong>
                 <small>@{member.user.tag}</small>
+                {e2ee.fingerprints.get(member.user.id) && <small className="safety-code">{e2ee.fingerprints.get(member.user.id)}</small>}
               </span>
               {member.role === 'admin' && <span className="badge">Admin</span>}
             </Link>

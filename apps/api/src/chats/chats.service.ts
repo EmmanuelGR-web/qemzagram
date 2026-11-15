@@ -8,6 +8,7 @@ import {
   type CallSummaryDto,
   type MessageDto,
   type SendAttachmentInput,
+  type SendE2eeMessageInput,
   type SendStickerInput,
   STICKER_SIZE,
 } from '@qemzagram/shared';
@@ -21,6 +22,7 @@ import { ContactsRepository } from '../database/repositories/contacts.repository
 import { ConversationsRepository, type MemberWithUser } from '../database/repositories/conversations.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import type { AttachmentRow, CallRow, ConversationRow, MessageRow, UserRow } from '../database/schema';
+import { E2eeService } from '../e2ee/e2ee.service';
 import { MediaProcessor, type ProcessedMedia, type UploadedInput } from '../media/media-processor.service';
 import { MediaService } from '../media/media.service';
 import { PushService } from '../notifications/push.service';
@@ -35,6 +37,13 @@ const MUTED_FOREVER = new Date('9999-12-31T00:00:00.000Z');
 const MUTE_MS: Record<Exclude<ChatMuteDuration, 'off' | 'always'>, number> = { '8h': 8 * 60 * 60 * 1000, '1w': 7 * 24 * 60 * 60 * 1000 };
 /** El aviso de un mensaje se reemplaza por el siguiente del mismo chat y no se guarda más de 1 día. */
 const MESSAGE_PUSH_TTL_SECONDS = 24 * 60 * 60;
+
+/** Todos los miembros tienen claves: el chat es de extremo a extremo y el servidor ya no acepta mensajes legibles. */
+const E2EE_REQUIRED = { code: 'E2EE_REQUIRED', message: 'Este chat está cifrado de extremo a extremo. Ingresá tu código de recuperación para escribir.' };
+const E2EE_UNAVAILABLE = { code: 'E2EE_UNAVAILABLE', message: 'No todas las personas de este chat activaron el cifrado de extremo a extremo' };
+/** El sobre no trae exactamente las claves actuales (alguien entró, salió o cambió sus claves): el dispositivo las vuelve a pedir. */
+const E2EE_KEYS_CHANGED = { code: 'E2EE_KEYS_CHANGED', message: 'Cambiaron las claves de este chat. Probá de nuevo.' };
+const MESSAGE_ID_TAKEN = { code: 'MESSAGE_ID_TAKEN', message: 'Ese mensaje ya existe' };
 
 const isMuted = (mutedUntil: Date | null, now = new Date()) => mutedUntil !== null && mutedUntil > now;
 /** Mismo aviso para las dos personas: no se revela quién bloqueó a quién. */
@@ -58,6 +67,7 @@ export class ChatsService {
     private readonly calls: CallsRepository,
     private readonly blocks: BlocksService,
     private readonly push: PushService,
+    private readonly e2ee: E2eeService,
   ) {}
 
   async list(userId: string): Promise<ConversationDto[]> {
@@ -182,6 +192,7 @@ export class ChatsService {
 
   async sendMessage(userId: string, conversationId: string, body: string): Promise<MessageDto> {
     await this.requireCanSend(userId, conversationId);
+    await this.assertNotE2ee(conversationId);
     const encrypted = this.crypto.encryptText(body, conversationId);
     const row = await this.conversations.insertMessage(conversationId, userId, encrypted);
     return this.publish(this.toMessageDto(row, null), true);
@@ -202,12 +213,47 @@ export class ChatsService {
   async sendSticker(userId: string, conversationId: string, input: SendStickerInput): Promise<MessageDto> {
     await this.requireCanSend(userId, conversationId);
     if ('code' in input) {
+      await this.assertNotE2ee(conversationId);
       const row = await this.conversations.insertMessage(conversationId, userId, this.crypto.encryptText('', conversationId), input.code);
       return this.publish(this.toMessageDto(row, null), true);
     }
     const image = await this.stickers.readOwned(userId, input.stickerId);
     const processed: ProcessedMedia = { data: image, mimeType: 'image/webp', name: null, width: STICKER_SIZE, height: STICKER_SIZE, durationMs: null };
     return this.storeAndPublish(userId, conversationId, 'sticker', processed, '');
+  }
+
+  /**
+   * Mensaje cifrado de extremo a extremo (texto o sticker del pack). El servidor solo comprueba
+   * QUIÉN lo envía y PARA QUIÉNES: el sobre tiene que traer exactamente las claves activas de los
+   * miembros actuales (ni una de más, ni una vieja). El contenido nunca lo ve.
+   */
+  async sendE2eeMessage(userId: string, conversationId: string, input: SendE2eeMessageInput): Promise<MessageDto> {
+    await this.requireCanSend(userId, conversationId);
+    await this.assertEnvelopeKeys(userId, conversationId, input.envelope);
+    const row = await this.conversations.insertE2eeMessage({
+      id: input.id,
+      conversationId,
+      senderId: userId,
+      body: this.crypto.encryptText('', conversationId),
+      e2ee: input.envelope,
+      franking: input.commitment,
+    });
+    if (!row) throw new ConflictException(MESSAGE_ID_TAKEN);
+    return this.publish(this.toMessageDto(row, null), true);
+  }
+
+  /** Si el chat ya es de extremo a extremo, no se aceptan mensajes que el servidor pueda leer. */
+  private async assertNotE2ee(conversationId: string): Promise<void> {
+    if ((await this.e2ee.activeKeysByMember(conversationId)).complete) throw new ConflictException(E2EE_REQUIRED);
+  }
+
+  async assertEnvelopeKeys(userId: string, conversationId: string, envelope: SendE2eeMessageInput['envelope']): Promise<void> {
+    const { keys, complete } = await this.e2ee.activeKeysByMember(conversationId);
+    const senderKey = keys.get(userId);
+    if (!complete || !senderKey) throw new ConflictException(E2EE_UNAVAILABLE);
+    const wrapped = Object.entries(envelope.keys);
+    const exact = envelope.sk === senderKey && wrapped.length === keys.size && wrapped.every(([memberId, entry]) => keys.get(memberId) === entry.k);
+    if (!exact) throw new ConflictException(E2EE_KEYS_CHANGED);
   }
 
   /**
@@ -376,11 +422,13 @@ export class ChatsService {
   }
 
   private toMessageDto(row: MessageRow, attachment: AttachmentRow | null, call: CallRow | null = null): MessageDto {
-    let body: string;
-    try {
-      body = this.crypto.decryptText(row.body, row.conversationId);
-    } catch {
-      body = UNAVAILABLE_BODY;
+    let body = '';
+    if (!row.e2ee) {
+      try {
+        body = this.crypto.decryptText(row.body, row.conversationId);
+      } catch {
+        body = UNAVAILABLE_BODY;
+      }
     }
     return {
       id: row.id,
@@ -390,6 +438,7 @@ export class ChatsService {
       attachment: attachment ? this.media.toAttachmentDto(attachment) : null,
       sticker: (row.stickerCode as GeneralStickerCode | null) ?? null,
       call: call ? toCallSummary(call) : null,
+      e2ee: row.e2ee && row.franking ? { envelope: row.e2ee, commitment: row.franking } : null,
       createdAt: row.createdAt.toISOString(),
     };
   }

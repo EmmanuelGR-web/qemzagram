@@ -1,13 +1,14 @@
 'use client';
 
-import { GENERAL_STICKER_LABELS, type AttachmentDto, type MessageDto } from '@qemzagram/shared';
+import { GENERAL_STICKER_LABELS, type AttachmentDto } from '@qemzagram/shared';
 import { useEffect, useState } from 'react';
 import { CloseIcon, DownloadIcon, FileIcon, MicIcon, PhoneIcon, VideoIcon } from '@/components/icons';
 import { mediaUrl } from '@/lib/api';
+import type { ViewMessage } from '@/lib/e2ee-messages';
 import { callLabel, formatBytes, formatDuration } from '@/lib/messages';
 
 interface Props {
-  message: MessageDto;
+  message: ViewMessage;
   /** Se llama si un archivo no carga (URL vencida o sesión vencida): la página renueva las URLs. */
   onMediaError: () => void;
 }
@@ -23,6 +24,18 @@ export function MessageContent({ message, onMediaError }: Props) {
         <span>{callLabel(message.call)}</span>
       </span>
     );
+  }
+  switch (message.secure) {
+    case 'pending':
+      return <span className="bubble-text muted">🔒 Descifrando…</span>;
+    case 'locked':
+      return <span className="bubble-text muted">🔒 Mensaje cifrado. Ingresá tu código de recuperación (Ajustes → Seguridad) para verlo.</span>;
+    case 'old-key':
+      return <span className="bubble-text muted">🔒 Este mensaje se cifró para claves anteriores y ya no se puede leer.</span>;
+    case 'failed':
+      return <span className="bubble-text muted">⚠️ No pudimos verificar este mensaje: puede haber sido alterado.</span>;
+    default:
+      break;
   }
   if (message.sticker) {
     return <img className="sticker-img" src={`/stickers/${message.sticker}.svg`} alt={`Sticker: ${GENERAL_STICKER_LABELS[message.sticker]}`} />;

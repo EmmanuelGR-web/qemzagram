@@ -7,7 +7,7 @@ import { Avatar } from '@/components/Avatar';
 import { BellOffIcon, GroupIcon, PlusIcon } from '@/components/icons';
 import { useAuth } from '@/lib/auth-context';
 import { describeConversation, formatTime, useChats } from '@/lib/chats-context';
-import { messagePreview } from '@/lib/messages';
+import { useViewMessages, viewPreview } from '@/lib/e2ee-messages';
 import { NewChatDialog } from './NewChatDialog';
 
 export function ChatList() {
@@ -16,6 +16,10 @@ export function ChatList() {
   const params = useParams<{ id?: string }>();
   const [dialog, setDialog] = useState<'direct' | 'group' | null>(null);
   const [query, setQuery] = useState('');
+
+  const lastMessages = useMemo(() => conversations.flatMap((conversation) => (conversation.lastMessage ? [conversation.lastMessage] : [])), [conversations]);
+  const lastViews = useViewMessages(lastMessages);
+  const lastById = useMemo(() => new Map(lastViews.map((message) => [message.id, message])), [lastViews]);
 
   const items = useMemo(() => {
     if (!user) return [];
@@ -57,9 +61,8 @@ export function ChatList() {
         )}
         {items.map((conversation) => {
           const info = describeConversation(conversation, user.id);
-          const preview = conversation.lastMessage
-            ? `${conversation.lastMessage.senderId === user.id ? 'Vos: ' : ''}${messagePreview(conversation.lastMessage)}`
-            : 'Sin mensajes todavía';
+          const last = conversation.lastMessage ? lastById.get(conversation.lastMessage.id) : undefined;
+          const preview = last ? `${last.senderId === user.id ? 'Vos: ' : ''}${viewPreview(last)}` : 'Sin mensajes todavía';
           return (
             <li key={conversation.id}>
               <Link href={`/chats/${conversation.id}`} className="chat-item" aria-current={params.id === conversation.id ? 'page' : undefined}>

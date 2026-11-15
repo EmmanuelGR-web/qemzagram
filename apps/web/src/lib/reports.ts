@@ -7,6 +7,8 @@ export interface EvidenceCandidate {
   id: string;
   label: string;
   createdAt: string;
+  /** Mensaje cifrado de extremo a extremo: contenido exacto + clave de franqueo (lo verifica el servidor). */
+  reveal?: { content: string; fk: string };
 }
 
 export const REPORT_EXPLANATION =

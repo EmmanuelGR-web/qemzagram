@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { PlusIcon, TrashIcon } from '@/components/icons';
 import { api, errorMessage, mediaUrl } from '@/lib/api';
+import { useMessageSender } from '@/lib/e2ee-messages';
 import { formatBytes } from '@/lib/messages';
 
 interface Props {
@@ -28,6 +29,7 @@ export function StickerPicker({ conversationId, onSent, onClose }: Props) {
   const [mine, setMine] = useState<StickerDto[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sendMessage = useMessageSender(conversationId);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -67,7 +69,8 @@ export function StickerPicker({ conversationId, onSent, onClose }: Props) {
     setBusy(true);
     setError(null);
     try {
-      onSent(await api<MessageDto>(`/chats/${conversationId}/stickers`, { body: input }));
+      const legacy = () => api<MessageDto>(`/chats/${conversationId}/stickers`, { body: input });
+      onSent('code' in input ? await sendMessage({ t: 'sticker', code: input.code }, legacy) : await legacy());
       onClose();
     } catch (caught) {
       setError(errorMessage(caught));

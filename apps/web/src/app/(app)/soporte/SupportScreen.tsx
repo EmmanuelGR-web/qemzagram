@@ -227,6 +227,11 @@ function EvidenceItem({ item }: { item: SupportEvidenceDto }) {
       <small className="muted">
         {item.source === 'status' ? 'Estado' : 'Mensaje'} · {formatDate(item.originalCreatedAt)}
       </small>
+      {item.verified && (
+        <small className="badge" title="Mensaje cifrado de extremo a extremo: el franqueo confirma que lo envió esta persona y que no fue editado">
+          Autenticidad verificada
+        </small>
+      )}
       {item.sticker && <p>Sticker: {GENERAL_STICKER_LABELS[item.sticker]}</p>}
       {media && media.mimeType.startsWith('image/') && <img src={media.url} alt="Evidencia" className="support-media" />}
       {media && media.mimeType.startsWith('video/') && <video src={media.url} controls className="support-media" />}

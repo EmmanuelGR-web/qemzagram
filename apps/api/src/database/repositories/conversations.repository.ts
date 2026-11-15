@@ -139,6 +139,12 @@ export class ConversationsRepository {
     return row;
   }
 
+  /** Mensaje cifrado de extremo a extremo con id elegido por el dispositivo. undefined si el id ya existe. */
+  async insertE2eeMessage(values: Pick<MessageRow, 'id' | 'conversationId' | 'senderId' | 'body' | 'e2ee' | 'franking'>): Promise<MessageRow | undefined> {
+    const [row] = await this.db.insert(messages).values(values).onConflictDoNothing().returning();
+    return row;
+  }
+
   async findMessage(id: string): Promise<MessageRow | undefined> {
     const [row] = await this.db.select().from(messages).where(eq(messages.id, id)).limit(1);
     return row;

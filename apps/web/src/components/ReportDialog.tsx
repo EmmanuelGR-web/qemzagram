@@ -55,7 +55,8 @@ export function ReportDialog({ user, candidates = [], preselected = [], alreadyB
     try {
       const evidence = [...selected].map((value) => {
         const [type, id] = value.split(':') as [ReportEvidenceSource, string];
-        return { type, id };
+        const reveal = candidates.find((item) => item.type === type && item.id === id)?.reveal;
+        return reveal ? { type, id, reveal } : { type, id };
       });
       await reportUser({ userId: user.id, reason, description, evidence });
       if (alsoBlock && !alreadyBlocked) await blockUser(user.id);

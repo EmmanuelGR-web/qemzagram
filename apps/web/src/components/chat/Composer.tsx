@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { AttachIcon, CameraIcon, FileIcon, ImageIcon, MicIcon, SendIcon, StickerIcon, TrashIcon, VideoIcon } from '@/components/icons';
 import { Modal } from '@/components/Modal';
 import { api, errorMessage } from '@/lib/api';
+import { useMessageSender } from '@/lib/e2ee-messages';
 import { formatBytes, formatDuration, kindForFile } from '@/lib/messages';
 import { useVoiceRecorder } from '@/lib/use-voice-recorder';
 import { CameraCapture, cameraSupported } from './CameraCapture';
@@ -40,6 +41,7 @@ export function Composer({ conversationId, onSent }: Props) {
   const videoInput = useRef<HTMLInputElement>(null);
   const voice = useVoiceRecorder();
   const recording = voice.state === 'recording';
+  const sendMessage = useMessageSender(conversationId);
 
   async function sendText(event?: FormEvent) {
     event?.preventDefault();
@@ -48,7 +50,7 @@ export function Composer({ conversationId, onSent }: Props) {
     setSending(true);
     setError(null);
     try {
-      onSent(await api<MessageDto>(`/chats/${conversationId}/messages`, { body: { body } }));
+      onSent(await sendMessage({ t: 'text', body }, () => api<MessageDto>(`/chats/${conversationId}/messages`, { body: { body } })));
       setDraft('');
     } catch (caught) {
       setError(errorMessage(caught));

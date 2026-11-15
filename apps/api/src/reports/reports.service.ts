@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { REPORTS_PER_DAY, type CreateReportInput, type MyReportDto } from '@qemzagram/shared';
+import { parseE2eeContent, REPORTS_PER_DAY, verifyFranking, type CreateReportInput, type E2eeContent, type MyReportDto } from '@qemzagram/shared';
 import { randomUUID } from 'node:crypto';
 import { USER_NOT_FOUND } from '../blocks/blocks.service';
 import { AuditService } from '../common/audit.service';
@@ -9,7 +9,7 @@ import { ConversationsRepository } from '../database/repositories/conversations.
 import { ReportsRepository } from '../database/repositories/reports.repository';
 import { StatusesRepository } from '../database/repositories/statuses.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
-import type { NewReportEvidenceRow } from '../database/schema';
+import type { MessageRow, NewReportEvidenceRow } from '../database/schema';
 import { evidenceAad, MediaService } from '../media/media.service';
 import { statusAad } from '../statuses/statuses.service';
 import { BlobStorage } from '../storage/blob-storage.port';
@@ -21,6 +21,8 @@ const INVALID_EVIDENCE = {
   message: 'Alguno de los mensajes o estados elegidos no es de esta persona o ya no está disponible',
 };
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+type Reveal = NonNullable<CreateReportInput['evidence'][number]['reveal']>;
 
 /** Una evidencia lista para guardar y, si tiene archivo, la clave del archivo ya copiado. */
 interface CollectedEvidence {
@@ -66,7 +68,7 @@ export class ReportsService {
       for (const item of input.evidence) {
         collected.push(
           item.type === 'message'
-            ? await this.copyMessage(reporterId, target.id, reportId, item.id)
+            ? await this.copyMessage(reporterId, target.id, reportId, item.id, item.reveal)
             : await this.copyStatus(reporterId, target.id, reportId, item.id, now),
         );
       }
@@ -113,11 +115,13 @@ export class ReportsService {
   }
 
   /** Un mensaje que ESCRIBIÓ la persona denunciada, en un chat donde quien denuncia ES MIEMBRO. */
-  private async copyMessage(reporterId: string, targetId: string, reportId: string, messageId: string): Promise<CollectedEvidence> {
+  private async copyMessage(reporterId: string, targetId: string, reportId: string, messageId: string, reveal?: Reveal): Promise<CollectedEvidence> {
     const message = await this.conversations.findMessage(messageId);
     if (!message || message.senderId !== targetId || message.callId || !(await this.conversations.getMemberRole(message.conversationId, reporterId))) {
       throw new BadRequestException(INVALID_EVIDENCE);
     }
+    if (message.e2ee) return this.copyE2eeMessage(reportId, message, reveal);
+    if (reveal) throw new BadRequestException(INVALID_EVIDENCE);
     const id = randomUUID();
     const [attachment] = await this.attachments.findByMessageIds([message.id]);
     const base: NewReportEvidenceRow = {
@@ -136,6 +140,38 @@ export class ReportsService {
       row: { ...base, storageKey, mimeType: attachment.mimeType, sizeBytes: attachment.sizeBytes, width: attachment.width, height: attachment.height, durationMs: attachment.durationMs },
       storageKey,
     };
+  }
+
+  /**
+   * Mensaje cifrado de extremo a extremo: el servidor NO puede leerlo, así que el dispositivo de quien
+   * denuncia revela el contenido y la clave de franqueo. Se acepta solo si el HMAC coincide con el
+   * compromiso que guardó el servidor al recibir el mensaje: así nadie puede inventar ni editar evidencia.
+   */
+  private async copyE2eeMessage(reportId: string, message: MessageRow, reveal?: Reveal): Promise<CollectedEvidence> {
+    if (!reveal || !message.franking || !(await verifyFranking(reveal.fk, reveal.content, message.franking))) {
+      throw new BadRequestException(INVALID_EVIDENCE);
+    }
+    let content: E2eeContent;
+    try {
+      content = parseE2eeContent(reveal.content);
+    } catch {
+      throw new BadRequestException(INVALID_EVIDENCE);
+    }
+    const id = randomUUID();
+    const base: NewReportEvidenceRow = {
+      id,
+      reportId,
+      source: 'message',
+      sourceId: message.id,
+      kind: content.t === 'text' ? 'text' : content.t === 'sticker' ? 'sticker' : content.file.kind,
+      bodyEncrypted: this.crypto.encryptText(content.t === 'sticker' ? '' : content.body, evidenceAad(id)),
+      stickerCode: content.t === 'sticker' ? content.code : null,
+      verified: true,
+      originalCreatedAt: message.createdAt,
+    };
+    if (content.t !== 'file') return { row: base, storageKey: null };
+    // Los adjuntos cifrados de extremo a extremo llegan en el paso siguiente (7B.3).
+    throw new BadRequestException(INVALID_EVIDENCE);
   }
 
   /** Un estado de la persona denunciada que quien denuncia PUEDE VER ahora (vigente, sin bloqueo y con permiso). */
