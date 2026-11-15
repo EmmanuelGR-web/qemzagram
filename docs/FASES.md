@@ -66,6 +66,6 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - Los mensajes anteriores a la activación siguen con el cifrado del servidor. Los estados de 24 h no son E2EE (se publican para toda la agenda).
 
 ## Despliegue y operación (en paralelo)
-- Integración continua (tests + `npm audit` en cada cambio), Dependabot.
+- Integración continua (tests + `npm audit` en cada cambio), Dependabot, y construcción + prueba de humo de las imágenes Docker de producción (amd64 en cada push; arm64 a pedido).
 - Dockerfiles de producción, hosting con HTTPS, backups probados, monitoreo y alertas.
 - Documentos legales (Términos, Privacidad) y registro de base de datos ante la AAIP.

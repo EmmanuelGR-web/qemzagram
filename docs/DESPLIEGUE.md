@@ -139,6 +139,10 @@ Al entrar, el panel de soporte te va a pedir activar la verificación en dos pas
 
 ## 8. Actualizar a una versión nueva
 
+**Antes de actualizar, mirá que el commit esté en verde en GitHub (pestaña *Actions*).** Además de los tests, la CI construye las imágenes de producción (job *Imágenes Docker*) y las prueba: la API arranca contra un PostgreSQL real, corre las migraciones y responde `/health`, y la web responde y hace de proxy a la API. También valida `docker-compose.prod.yml`, revisa los scripts de backup con `shellcheck` y comprueba que los contenedores no corran como root. Si ese job está en rojo, **no actualices el servidor**.
+
+En cada push las imágenes se prueban en amd64, que es rápido. Los Dockerfiles son los mismos para ARM64, pero si cambiaste algo de Docker podés probar la arquitectura exacta de Oracle: *Actions → CI → Run workflow → plataforma `linux/arm64`*. Se emula con QEMU, así que tarda bastante más y gasta más minutos gratis. En el servidor la compilación es nativa en ARM64. **No construyas las imágenes en tu PC**: con 8 GB de RAM la compilación de Next.js la puede congelar.
+
 ```bash
 cd ~/qemzagram && git pull
 cd deploy && docker compose -f docker-compose.prod.yml up -d --build
