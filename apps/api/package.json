@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.16",
-    "@nestjs/common": "^11.0.0",
+    "@nestjs/common": "^12.4.2",
     "@nestjs/core": "^11.0.0",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
