@@ -15,8 +15,18 @@ updates:
     commit-message:
       prefix: 'Dependencias'
     groups:
+      # NestJS se actualiza TODO junto: mezclar versiones mayores (p. ej. common 12 con core 11) instala dos
+      # copias de Nest y rompe la inyección de dependencias. Va primero para que gane sobre "menores".
+      nestjs:
+        patterns: ['@nestjs/*']
       menores:
         update-types: [minor, patch]
+    ignore:
+      # Los tipos de Node tienen que coincidir con el Node de producción (24, en los Dockerfiles y la CI):
+      # con tipos más nuevos se podrían usar funciones que en el servidor no existen.
+      # Al cambiar la versión de Node, subí @types/node a mano.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
 
   # Las propias acciones de GitHub usadas en la CI.
   - package-ecosystem: github-actions
