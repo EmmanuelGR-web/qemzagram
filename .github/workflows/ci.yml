@@ -1,0 +1,60 @@
+# Integración continua: en cada push a main y en cada pull request se verifica que el proyecto
+# compile sin errores de tipos, que pasen TODOS los tests (con ffmpeg real) y que las
+# dependencias de producción no tengan vulnerabilidades conocidas. Si algo falla, el commit queda en rojo.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Mínimo privilegio: el flujo solo puede LEER el repositorio (no puede escribir, publicar ni crear releases).
+permissions:
+  contents: read
+
+# Si llega un push nuevo a la misma rama, se cancela la corrida vieja (ahorra minutos gratis).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Tipos, tests, auditoría y build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # La prueba de ffmpeg real no se puede saltear en CI (comprueba que se borra el GPS de los videos).
+      REQUIRE_FFMPEG: 'true'
+      # Next no manda estadísticas de uso desde la CI.
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      # npm ci instala EXACTAMENTE lo del package-lock.json (y falla si no coincide con package.json).
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Auditoría de dependencias (producción)
+        run: npm run audit
+
+      - name: Verificar tipos (API y web)
+        run: npm run typecheck
+
+      - name: Tests de la API
+        run: npm test
+
+      - name: Compilar todo
+        run: npm run build

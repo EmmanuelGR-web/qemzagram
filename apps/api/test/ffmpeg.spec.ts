@@ -22,7 +22,12 @@ function ffmpegInstalled(): boolean {
   }
 }
 
-const describeIfFfmpeg = ffmpegInstalled() ? describe : describe.skip;
+const installed = ffmpegInstalled();
+// En la integración continua (REQUIRE_FFMPEG=true) NO se permite saltear: sin ffmpeg, la prueba falla.
+if (!installed && process.env.REQUIRE_FFMPEG === 'true') {
+  throw new Error('REQUIRE_FFMPEG=true pero ffmpeg/ffprobe no están instalados');
+}
+const describeIfFfmpeg = installed ? describe : describe.skip;
 
 describeIfFfmpeg('ffmpeg real: conversión y limpieza de metadatos', () => {
   const dir = mkdtempSync(join(tmpdir(), 'qz-ffmpeg-test-'));

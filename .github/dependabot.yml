@@ -1,0 +1,27 @@
+# Dependabot revisa cada semana si hay versiones nuevas y abre pull requests (que pasan por la CI).
+# Las actualizaciones de SEGURIDAD llegan apenas se publican, sin esperar al lunes.
+# Las menores y de parche se agrupan en un solo PR para no llenar el repositorio de avisos.
+version: 2
+updates:
+  # Paquetes de npm de todo el monorepo (un solo package-lock.json en la raíz).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Argentina/Tucuman
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'Dependencias'
+    groups:
+      menores:
+        update-types: [minor, patch]
+
+  # Las propias acciones de GitHub usadas en la CI.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'CI'
