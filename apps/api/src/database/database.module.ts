@@ -9,6 +9,7 @@ import { ReportsRepository } from './repositories/reports.repository';
 import { AppealsRepository } from './repositories/appeals.repository';
 import { MfaRepository } from './repositories/mfa.repository';
 import { PasskeysRepository } from './repositories/passkeys.repository';
+import { E2eeKeysRepository } from './repositories/e2ee-keys.repository';
 import { SupportStatsRepository } from './repositories/support-stats.repository';
 import { NearbyRepository } from './repositories/nearby.repository';
 import { AttachmentsRepository } from './repositories/attachments.repository';
@@ -75,6 +76,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     AppealsRepository,
     MfaRepository,
     PasskeysRepository,
+    E2eeKeysRepository,
     SupportStatsRepository,
   ],
   exports: [
@@ -96,6 +98,7 @@ async function createHandle(env: AppEnv): Promise<DatabaseHandle> {
     AppealsRepository,
     MfaRepository,
     PasskeysRepository,
+    E2eeKeysRepository,
     SupportStatsRepository,
   ],
 })

@@ -1,5 +1,5 @@
 /** Cambios de seguridad que se avisan por correo (lista cerrada). */
-export type SecurityEvent = 'mfa_enabled' | 'mfa_disabled' | 'backup_codes_regenerated' | 'backup_code_used' | 'passkey_added' | 'passkey_removed';
+export type SecurityEvent = 'mfa_enabled' | 'mfa_disabled' | 'backup_codes_regenerated' | 'backup_code_used' | 'passkey_added' | 'passkey_removed' | 'e2ee_key_reset';
 
 /**
  * Puerto de correo (inversión de dependencias): el resto de la app depende de esta

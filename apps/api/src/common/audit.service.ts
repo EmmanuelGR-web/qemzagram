@@ -41,7 +41,9 @@ export type AuditAction =
   | 'mfa.backup_used'
   | 'mfa.backup_regenerated'
   | 'mfa.passkey_added'
-  | 'mfa.passkey_removed';
+  | 'mfa.passkey_removed'
+  | 'e2ee.key_created'
+  | 'e2ee.key_reset';
 
 /** Registra eventos de seguridad. Nunca guarda contraseñas, tokens ni contenido de mensajes. */
 @Injectable()

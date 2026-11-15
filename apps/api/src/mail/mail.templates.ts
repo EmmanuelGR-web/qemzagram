@@ -111,6 +111,7 @@ const SECURITY_EVENT_TEXT: Record<SecurityEvent, string> = {
   backup_code_used: 'Iniciaste sesión con un código de respaldo.',
   passkey_added: 'Agregaste una llave de acceso a tu cuenta.',
   passkey_removed: 'Quitaste una llave de acceso de tu cuenta.',
+  e2ee_key_reset: 'Generaste claves de cifrado nuevas. Los mensajes cifrados con las claves anteriores ya no se pueden leer y tus contactos van a ver que cambió tu código de seguridad.',
 };
 
 export function securityAlertEmail(displayName: string, event: SecurityEvent): EmailContent {

@@ -4,3 +4,4 @@ export * from './password';
 export * from './pow';
 export * from './schemas';
 export * from './types';
+export * from './e2ee';

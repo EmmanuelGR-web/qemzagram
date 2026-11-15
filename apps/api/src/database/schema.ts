@@ -525,6 +525,31 @@ export const passkeys = pgTable(
 );
 
 /** Códigos de respaldo del 2FA: solo su HMAC (con clave del servidor), de un solo uso. */
+/**
+ * Claves de cifrado de extremo a extremo (Fase 7B). Una ACTIVA por cuenta (`revokedAt` nulo);
+ * las anteriores se conservan para verificar mensajes viejos. El servidor guarda la clave PÚBLICA
+ * y una copia de la privada CIFRADA con el código de recuperación (que el servidor nunca conoce).
+ */
+export const e2eeKeys = pgTable(
+  'e2ee_keys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** JWK público (solo kty, crv, x, y). */
+    publicKey: jsonb('public_key').$type<{ kty: 'EC'; crv: 'P-256'; x: string; y: string }>().notNull(),
+    /** Copia cifrada de la clave privada (null cuando la clave se revoca o la cuenta se da de baja). */
+    backup: jsonb('backup').$type<{ v: 1; kdf: 'PBKDF2-SHA256'; iterations: number; salt: string; iv: string; ct: string }>(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    revokedAt: ts('revoked_at'),
+  },
+  (table) => [
+    index('e2ee_keys_user_idx').on(table.userId),
+    uniqueIndex('e2ee_keys_one_active_idx').on(table.userId).where(sql`${table.revokedAt} is null`),
+  ],
+);
+
 export const mfaBackupCodes = pgTable(
   'mfa_backup_codes',
   {
@@ -575,3 +600,4 @@ export type NewReportEvidenceRow = typeof reportEvidence.$inferInsert;
 export type AppealRow = typeof appeals.$inferSelect;
 export type MfaBackupCodeRow = typeof mfaBackupCodes.$inferSelect;
 export type PasskeyRow = typeof passkeys.$inferSelect;
+export type E2eeKeyRow = typeof e2eeKeys.$inferSelect;

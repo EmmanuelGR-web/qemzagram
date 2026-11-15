@@ -12,6 +12,7 @@ import { ConfigModule } from './config/config.module';
 import { ENV, type AppEnv } from './config/env';
 import { ContactsModule } from './contacts/contacts.module';
 import { DatabaseModule } from './database/database.module';
+import { E2eeModule } from './e2ee/e2ee.module';
 import { HealthController } from './health/health.controller';
 import { MailModule } from './mail/mail.module';
 import { MediaModule } from './media/media.module';
@@ -49,6 +50,7 @@ import { UsersModule } from './users/users.module';
     }),
     AuthModule,
     UsersModule,
+    E2eeModule,
     ContactsModule,
     BlocksModule,
     NearbyModule,

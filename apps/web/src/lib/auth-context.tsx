@@ -3,6 +3,7 @@
 import type { SelfUser } from '@qemzagram/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, ApiError } from './api';
+import { clearDeviceKeys } from './e2ee-store';
 import { disablePush } from './push';
 
 interface AuthState {
@@ -35,6 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Este dispositivo deja de recibir avisos de esta cuenta (antes de cerrar la sesión).
     await disablePush().catch(() => undefined);
     await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
+    // El dispositivo olvida la clave de cifrado: para volver a leer hace falta el código de recuperación.
+    await clearDeviceKeys().catch(() => undefined);
     setUser(null);
   }, []);
 

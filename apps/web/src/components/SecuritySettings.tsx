@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { addPasskey, PasskeyCancelled, passkeysSupported } from '@/lib/passkeys';
+import { E2eeSettings } from './E2eeSettings';
 import { Modal } from './Modal';
 import { PasswordField } from './PasswordField';
 
@@ -102,6 +103,7 @@ export function SecuritySettings() {
           </button>
         </div>
       )}
+      <E2eeSettings />
       {error && <p className="alert alert-error">{error}</p>}
       {dialog === 'setup' && <TotpSetupDialog onClose={() => setDialog(null)} onDone={finished} />}
       {dialog === 'disable' && <ConfirmDialog mode="disable" onClose={() => setDialog(null)} onDone={finished} />}

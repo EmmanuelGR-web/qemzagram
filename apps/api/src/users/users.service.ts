@@ -5,6 +5,7 @@ import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
 import { toLimitedUser, toPublicUser, toSelfUser } from '../common/mappers';
 import { ContactsRepository } from '../database/repositories/contacts.repository';
+import { E2eeService } from '../e2ee/e2ee.service';
 import { SessionsRepository } from '../database/repositories/sessions.repository';
 import { UsersRepository } from '../database/repositories/users.repository';
 import { GreetingsService } from '../nearby/greetings.service';
@@ -28,6 +29,7 @@ export class UsersService {
     private readonly blocks: BlocksService,
     private readonly nearby: NearbyService,
     private readonly greetings: GreetingsService,
+    private readonly e2ee: E2eeService,
   ) {}
 
   async getMe(userId: string): Promise<SelfUser> {
@@ -112,6 +114,7 @@ export class UsersService {
     await this.blocks.removeAllFor(userId);
     await this.nearby.removeAllFor(userId);
     await this.greetings.removeAllFor(userId);
+    await this.e2ee.removeAllFor(userId);
     await this.audit.log('account.deleted', { userId });
   }
 
