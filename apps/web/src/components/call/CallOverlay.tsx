@@ -93,6 +93,7 @@ function CallScreen({ session }: { session: ActiveCall }) {
       <header className="call-head">
         <strong>{title}</strong>
         <small aria-live="polite">{status}</small>
+        {session.encrypted && <small className="call-e2ee">🔒 Cifrada de extremo a extremo</small>}
       </header>
 
       <div className="call-grid" data-count={Math.max(1, remotes.length)}>

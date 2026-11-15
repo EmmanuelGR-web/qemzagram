@@ -18,7 +18,7 @@ export class CallsController {
   @HttpCode(201)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   start(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodPipe(startCallSchema)) body: StartCallInput): Promise<CallJoinDto> {
-    return this.calls.start(user.id, id, body.kind);
+    return this.calls.start(user.id, id, body.kind, body.e2ee);
   }
 
   /** Llamadas en curso en mis chats. */

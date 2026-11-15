@@ -1,6 +1,7 @@
 import { Logger, Module } from '@nestjs/common';
 import { BlocksModule } from '../blocks/blocks.module';
 import { ChatsModule } from '../chats/chats.module';
+import { E2eeModule } from '../e2ee/e2ee.module';
 import { ENV, type AppEnv } from '../config/env';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CallMediaPort } from './call-media.port';
@@ -10,7 +11,7 @@ import { CallsService } from './calls.service';
 import { DisabledCallMedia, LiveKitCallMedia } from './livekit.media';
 
 @Module({
-  imports: [ChatsModule, NotificationsModule, BlocksModule],
+  imports: [ChatsModule, NotificationsModule, BlocksModule, E2eeModule],
   controllers: [CallsController],
   providers: [
     CallsService,

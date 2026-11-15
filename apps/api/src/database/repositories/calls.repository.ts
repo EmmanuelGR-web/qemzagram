@@ -28,10 +28,20 @@ export class CallsRepository {
    * Crea la llamada con sus participantes (quien llama ya figura "joined").
    * Devuelve `undefined` si ya había una llamada en curso en esa conversación.
    */
-  async create(conversationId: string, startedBy: string, kind: CallKind, invitedIds: string[], now: Date): Promise<CallRow | undefined> {
+  async create(
+    conversationId: string,
+    startedBy: string,
+    kind: CallKind,
+    invitedIds: string[],
+    now: Date,
+    e2ee: { id: string; envelope: NonNullable<CallRow['e2ee']> } | null = null,
+  ): Promise<CallRow | undefined> {
     try {
       return await this.db.transaction(async (tx) => {
-        const [call] = await tx.insert(calls).values({ conversationId, startedBy, kind, createdAt: now }).returning();
+        const [call] = await tx
+          .insert(calls)
+          .values({ conversationId, startedBy, kind, createdAt: now, ...(e2ee ? { id: e2ee.id, e2ee: e2ee.envelope } : {}) })
+          .returning();
         if (!call) throw new Error('No se pudo crear la llamada');
         await tx.insert(callParticipants).values([
           { callId: call.id, userId: startedBy, state: 'joined', joinedAt: now },

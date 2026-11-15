@@ -29,9 +29,9 @@ Este repositorio contiene las **Fases 1 a 6 y la 7A** del proyecto: la base segu
 | **Fase 5:** **bloqueo de usuarios** y **personas cercanas** (opt-in de 1 h, zona aproximada de ~1 km, saludos que conectan las agendas) | ✅ |
 | **Fase 6:** **silenciar chats** y avisos de mensajes, **denuncias** con evidencia elegida, **panel de soporte** (sin acceso a chats), bajas con apelación y reseteo de contraseña asistido | ✅ |
 | **Fase 7A:** **verificación en dos pasos** (app autenticadora, códigos de respaldo y **llaves de acceso**), **anti-bots** propio, límites compartidos con Redis y **CSP con nonce** | ✅ |
-| Cifrado de extremo a extremo (E2EE) | 🔜 Fase 7B |
+| **Fase 7B:** **cifrado de extremo a extremo** de mensajes, archivos y llamadas, con **código de recuperación**, **código de seguridad** y **denuncias verificables** (franqueo) | ✅ |
 
-> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 154 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
+> ⚠️ **Sobre la seguridad y el cumplimiento legal:** esta base aplica prácticas profesionales (OWASP, Argon2id, JWT de vida corta, cifrado, validación estricta, 180 pruebas automáticas, 0 vulnerabilidades conocidas en dependencias de producción). Pero **ningún software puede garantizar "cero errores"**, y cumplir ISO 27001 o la Ley 25.326 requiere procesos, auditoría externa y asesoría legal. Leé [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md) con honestidad antes de lanzar al público.
 
 ---
 
@@ -98,6 +98,8 @@ Abrí **http://localhost:3000** en el navegador.
 10. **Panel de soporte:** frená la API (si usás `setup:sin-docker`), corré `npm run support:grant -- @tu_tag`, volvé a iniciarla y entrá a **Menú → Panel de soporte**. Ahí ves la denuncia con la evidencia, podés confirmarla o descartarla, buscar cuentas y ver estadísticas. Con 3 denuncias confirmadas de personas distintas la cuenta se da de baja; desde **/apelar** se puede pedir la revisión.
 11. **Verificación en dos pasos:** en **Ajustes → Seguridad** tocá **Activar**, escaneá el QR con Google Authenticator o Authy y guardá los códigos de respaldo. Cerrá sesión y volvé a entrar: después de la contraseña te pide el código. Con **Agregar** en "Llaves de acceso" podés usar la huella o el PIN de tu dispositivo (funciona en `localhost`; desde otra dirección hace falta HTTPS). Al iniciar sesión vas a notar 1–2 segundos de "verificación anti-bots": es la prueba de trabajo.
 
+12. **Cifrado de extremo a extremo:** al entrar, la app te ofrece **Crear mi código**. Guardá el código de recuperación y activalo en las dos cuentas: desde ese momento el chat muestra un 🔒 y los mensajes, archivos y llamadas viajan cifrados (ni el servidor puede leerlos). Para probar un "dispositivo nuevo", cerrá sesión y volvé a entrar: te pide el código. En la información del chat está el **código de seguridad** de cada persona.
+
 > Desde el celular (misma red Wi-Fi): abrí `http://IP-DE-TU-PC:3000`. Ojo: fuera de `localhost` los navegadores solo dan acceso a la **ubicación**, la cámara y el micrófono con **HTTPS**, así que "Cercanos" y las llamadas desde el celular necesitan HTTPS (ver sección 8).
 
 ---
@@ -141,6 +143,7 @@ qemzagram/
 │  │  │  ├─ mfa/              ← verificación en dos pasos (TOTP, códigos de respaldo, llaves de acceso)
 │  │  │  ├─ captcha/          ← prueba de trabajo anti-bots
 │  │  │  ├─ kv/               ← almacén compartido (memoria o Redis) para límites y anti-bots
+│  │  │  ├─ e2ee/             ← directorio de claves de extremo a extremo (públicas + copias cifradas)
 │  │  │  ├─ realtime/         ← entrega en tiempo real (WebSocket)
 │  │  │  ├─ mail/             ← envío de correos (puerto + implementación SMTP)
 │  │  │  ├─ storage/          ← procesamiento seguro de imágenes
@@ -173,6 +176,7 @@ Más detalle y los principios SOLID aplicados: [`docs/ARQUITECTURA.md`](docs/ARQ
 - **Personas cercanas** solo con opt-in de 1 hora: la ubicación exacta nunca sale del celular (se envía una zona de ~1 km), distancias por rangos y límites contra el rastreo. **Bloqueo total** de usuarios.
 - **Soporte sin acceso a conversaciones:** solo ve la evidencia que elige quien denuncia (copiada y cifrada), estadísticas agregadas y fichas con el correo enmascarado. Los roles se dan solo por consola.
 - **Endurecimiento:** verificación en dos pasos (TOTP, códigos de respaldo y llaves de acceso), anti-bots por prueba de trabajo, límites compartidos con Redis y CSP con nonce para los scripts.
+- **Cifrado de extremo a extremo** (WebCrypto estándar: ECDH P-256 + HKDF + AES-GCM) en mensajes, archivos y llamadas cuando todos los del chat lo activan; los metadatos de las fotos y videos se quitan en el dispositivo; las denuncias se verifican con franqueo.
 
 Detalle completo, límites y pendientes legales: [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md).
 

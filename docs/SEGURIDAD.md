@@ -75,7 +75,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - **Notificaciones push:** protocolo Web Push estándar (VAPID). El contenido va **cifrado** de punta a punta entre la API y el navegador y es mínimo: quién llama y el tipo de llamada, o (desde la Fase 6) quién te escribió, **nunca el contenido de los mensajes**. Las suscripciones se guardan **cifradas** (permiten mandarle avisos a esa persona). Para evitar **SSRF**, solo se aceptan direcciones `https` de los servicios oficiales (Google, Mozilla, Apple, Microsoft). Se borran al cerrar sesión, al dar de baja la cuenta y cuando el navegador las cancela.
 
 **Límites honestos de la Fase 4:**
-- Las llamadas **no son E2EE**: el servidor de medios (que controlamos) podría técnicamente acceder al audio/video mientras pasa. LiveKit admite E2EE con claves compartidas; queda para la Fase 7.
+- Las llamadas de chats sin cifrado de extremo a extremo **no son E2EE**: el servidor de medios (que controlamos) podría técnicamente acceder al audio/video mientras pasa. Desde la Fase 7B, en los chats donde todos activaron el cifrado, las llamadas **sí son E2EE** (§2.7).
 - No se probó todavía con un servidor LiveKit real ni entre dos dispositivos (los tests usan un servidor de medios falso; la verificación de tokens y webhooks sí usa la librería real).
 - En Chrome, si un aviso de "llamada atendida en otro dispositivo" llega sin mostrar nada, el navegador puede mostrar un aviso genérico ocasional.
 - En iPhone las notificaciones solo funcionan con la app **instalada** (iOS 16.4 o superior).
@@ -162,6 +162,37 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 - Costo: todas las páginas se renderizan en cada pedido (no hay HTML estático cacheable).
 - **Límite honesto:** `style-src` sigue con `'unsafe-inline'` porque la interfaz usa atributos `style`. Sacarlo requiere mover esos estilos a clases y probarlo en un navegador.
 
+## 2.7 Cifrado de extremo a extremo (Fase 7B)
+
+**Modelo (diseño simple con primitivas estándar, sin criptografía inventada):**
+- Cada **cuenta** tiene un par de claves **ECDH P-256**. La privada se genera en el navegador y se guarda en IndexedDB como `CryptoKey` **no exportable**: ni un script inyectado puede leer sus bytes (aunque sí podría usarla mientras esté en la página: por eso sigue importando la CSP con nonce de §2.6).
+- **Copia de seguridad:** la privada se cifra con un **código de recuperación** de 160 bits (32 caracteres en base32 de Crockford) derivado con **PBKDF2-SHA-256** (310.000 iteraciones) y AES-256-GCM, atada a la cuenta (AAD con el id). El servidor guarda la copia pero no puede abrirla: con 160 bits no se puede adivinar el código. **Si se pierde el código, el historial cifrado no se recupera** (ni nosotros podemos).
+- **Mensajes:** cada mensaje tiene su propia clave AES-256 al azar. Esa clave se envuelve para cada miembro con `ECDH(privada de quien envía, pública del miembro) → HKDF-SHA-256 → AES-256-GCM`. El envoltorio está atado al **contenido cifrado** (sal = SHA-256 del cifrado) y al **contexto** (propósito, conversación, id del mensaje, quién envía, quién recibe y su clave): el servidor no puede mover un mensaje a otro chat, cambiarle el autor ni reutilizarlo. El id del mensaje lo genera el dispositivo para poder atarlo al cifrado.
+- **Autenticidad:** como el acuerdo es estático-estático, solo quien envía y ese destinatario pueden calcular la clave de envoltura. El dispositivo comprueba que la clave usada sea **de quien figura como remitente**; si no, el mensaje se muestra como "no verificado".
+- **El servidor como directorio:** comprueba que el sobre traiga **exactamente** las claves activas de los miembros actuales (ni una de más, ni una vieja) y, cuando todos tienen claves, **rechaza** mensajes, adjuntos y llamadas legibles (`E2EE_REQUIRED`).
+- **Código de seguridad:** 40 cifras derivadas de la clave pública de cada miembro (en la información del chat). Si la clave de un contacto cambia, el chat muestra un aviso. Compararlo en persona es la única forma de descartar que el servidor haya repartido una clave falsa.
+
+**Denuncias con franqueo (*message franking*):**
+- Quien envía sortea una clave de franqueo, la mete **dentro** del cifrado y publica `HMAC-SHA-256(clave, contenido)`. El servidor guarda ese compromiso con el mensaje.
+- Quien recibe verifica el compromiso al descifrar: si no coincide, el mensaje **no se muestra** (así nadie puede mandar algo que después no se pueda denunciar).
+- Al denunciar, el dispositivo revela el contenido exacto y la clave. El servidor recalcula el HMAC: solo si coincide acepta la evidencia y la marca como **"Autenticidad verificada"**. No se puede inventar, editar ni reutilizar la revelación de otro mensaje.
+- Para los adjuntos, la clave del archivo está dentro del contenido comprometido: el servidor abre la copia, determina el **tipo real por contenido** (si no coincide con lo declarado, soporte solo puede descargarla) y **la pasa por el antivirus** (si tiene malware, se registra y no se guarda el archivo).
+
+**Adjuntos:**
+- El navegador limpia el archivo **antes** de cifrarlo: las fotos se decodifican y se vuelven a dibujar en un canvas (sale una imagen nueva, sin EXIF ni GPS); en los videos MP4/MOV las cajas de metadatos (`udta`, `meta`, `uuid`: ubicación, cámara, software) se convierten en cajas `free` con su contenido en cero y las fechas de creación quedan en cero, **sin mover nada** (los índices siguen siendo válidos). Verificado con ffmpeg: un video con ubicación (incluida la de Apple, ISO 6709) queda sin ella y se reproduce igual. Los documentos se limitan a la lista cerrada de extensiones y se verifica la firma del formato.
+- El archivo se cifra con una clave nueva (AAD = id del adjunto) y el servidor lo vuelve a cifrar con la suya (dos capas). Se sirve como `application/octet-stream`, como descarga y solo a miembros.
+
+**Llamadas:** quien llama genera el id y una clave de 256 bits, y la envuelve para cada miembro como un mensaje (propósito `call`). Cada dispositivo la abre antes de atender y activa el **cifrado por cuadro de LiveKit** (`ExternalE2EEKeyProvider` + worker): el servidor de medios reenvía audio y video que no puede descifrar.
+
+**Límites honestos de la Fase 7B:**
+- **Antivirus:** el servidor ya no puede escanear los adjuntos de los chats cifrados. La única protección es la del dispositivo de quien recibe (los documentos nunca se abren dentro de la app, siempre como descarga).
+- **No es el protocolo Signal ni MLS:** no hay *forward secrecy* por mensaje (si alguien roba la clave privada de una cuenta y tiene copia de los sobres, puede leer el historial). La clave es **por cuenta, no por dispositivo**: no se puede revocar un solo dispositivo; ante una sospecha, hay que generar claves nuevas.
+- **Confianza en el directorio:** un servidor malicioso podría repartir una clave falsa. Lo detecta la comparación del código de seguridad, que depende de las personas.
+- **Metadatos:** el servidor sigue viendo quién habla con quién, cuándo y el tamaño de los mensajes y archivos.
+- **Llamadas de grupo:** quien se suma al grupo durante una llamada no tiene la clave de esa llamada; no se rota la clave cuando alguien sale. Requieren un navegador con *insertable streams* (Chrome, Edge, Firefox y Safari actuales); en otros, la llamada cifrada no se puede atender. **No se probó todavía con un servidor LiveKit real ni entre dos dispositivos.**
+- **La web es la que cifra:** si el servidor que entrega la página fuera comprometido, podría servir código que filtre las claves. Es el límite conocido de todo E2EE en navegador; una app instalada con firma lo reduce.
+- La interfaz (activación, código de recuperación, avisos) **no se revisó todavía en un navegador**.
+
 ## 3. Cómo funciona la recuperación de contraseña
 
 - **Por correo:** `¿Olvidé mi contraseña?` → enlace de un solo uso, válido 1 hora → nueva contraseña (con la misma política) → todas las sesiones se cierran.
@@ -171,7 +202,7 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 
 | Tema | Situación | Plan |
 |---|---|---|
-| **Cifrado de extremo a extremo (E2EE)** | Hoy los mensajes están cifrados **en la base de datos** con una clave del servidor. Eso protege ante un robo de la base, pero **el servidor técnicamente podría descifrarlos**. Que "el soporte no pueda leerlos" hoy se cumple porque **no existe ninguna función ni endpoint** que lo permita, no por criptografía. | Fase 7: E2EE real (protocolo Signal/MLS) donde ni el servidor puede leer. Es un proyecto grande, con impacto en grupos, multi-dispositivo y copias de seguridad. |
+| **Cifrado de extremo a extremo (E2EE)** | ✅ Fase 7B (§2.7) en los chats donde todos lo activaron: ni el servidor ni soporte pueden leer mensajes, archivos ni llamadas. Los mensajes anteriores y los chats con alguien sin claves siguen cifrados en la base con una clave del servidor. Diseño simple (clave por cuenta, sin *forward secrecy*). | Revisión criptográfica externa; evaluar Signal/MLS y claves por dispositivo |
 | 2FA obligatorio para todas las cuentas | ✅ Opcional (TOTP, códigos de respaldo y llaves de acceso); obligatorio para soporte | Evaluar al lanzar |
 | CAPTCHA más fuerte (Turnstile/hCaptcha) | ✅ Prueba de trabajo propia (§2.6) | Solo si aparecen bots sofisticados |
 | Límite de peticiones compartido entre servidores | ✅ Redis con `REDIS_URL` (adaptador sin probar contra un Redis real en los tests) | Probar con el Redis del despliegue |
@@ -180,7 +211,8 @@ Cada subida al chat pasa por el mismo recorrido, en este orden:
 | Análisis antivirus de archivos adjuntos | ✅ Cliente ClamAV implementado y obligatorio en producción. En desarrollo puede quedar desactivado (aviso en consola) | Instalar `clamd` en el servidor |
 | Almacenamiento externo de archivos (S3/R2) | Disco local cifrado detrás del puerto `BlobStorage` | Adaptador S3/R2 al elegir proveedor |
 | Servidor de llamadas en producción | LiveKit en Docker solo para desarrollo | LiveKit propio (wss, credenciales propias, puertos UDP) o LiveKit Cloud |
-| Llamadas E2EE | No (el servidor de medios es de confianza) | Fase 7 |
+| Llamadas E2EE | ✅ En chats cifrados (cifrado por cuadro de LiveKit); sin probar con un LiveKit real | Probar con el LiveKit del despliegue |
+| Antivirus en adjuntos cifrados de extremo a extremo | No es posible (el servidor no ve el contenido); sí se escanea la copia de una denuncia | Asumido por diseño |
 | Revisión de riesgos y legal de "Personas cercanas" | Diseño con celdas de 1 km, opt-in de 1 h y anti-rastreo (§2.4) | **Antes de abrirla al público** |
 | Edad mínima / verificación de edad | No implementada | Antes de lanzar (especialmente "Personas cercanas") |
 | Prueba de penetración externa | No realizada | **Obligatoria antes de lanzar** |
@@ -218,3 +250,4 @@ Esto es **orientación general, no asesoramiento legal**:
 - [ ] Monitoreo, alertas y plan de respuesta a incidentes
 - [ ] Dependabot / `npm audit` en cada cambio (integración continua)
 - [ ] Revisión legal de la función de ubicación
+- [ ] Revisión criptográfica externa del diseño E2EE (§2.7) y prueba de llamadas cifradas con LiveKit real entre dos dispositivos

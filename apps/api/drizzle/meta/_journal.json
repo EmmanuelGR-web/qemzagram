@@ -134,6 +134,13 @@
       "when": 1794704664262,
       "tag": "0018_adjuntos_e2ee",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794705356775,
+      "tag": "0019_llamadas_e2ee",
+      "breakpoints": true
     }
   ]
 }

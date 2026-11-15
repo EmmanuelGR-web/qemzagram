@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { CALL_MAX_HOURS, CALL_RING_SECONDS, type CallDto, type CallJoinDto, type CallKind, type PushPayload } from '@qemzagram/shared';
+import { CALL_MAX_HOURS, CALL_RING_SECONDS, type CallDto, type CallJoinDto, type CallKind, type PushPayload, type StartCallInput } from '@qemzagram/shared';
 import { BlocksService } from '../blocks/blocks.service';
 import { ChatsService } from '../chats/chats.service';
 import { toLimitedUser, toPublicUser } from '../common/mappers';
 import { CallsRepository, type ParticipantWithUser } from '../database/repositories/calls.repository';
 import { ConversationsRepository, type MemberWithUser } from '../database/repositories/conversations.repository';
 import type { CallRow, ConversationRow } from '../database/schema';
+import { E2eeService } from '../e2ee/e2ee.service';
 import { PushService } from '../notifications/push.service';
 import { RealtimePublisher } from '../realtime/realtime.port';
 import { CallMediaPort, type CallMediaEvent } from './call-media.port';
@@ -35,13 +36,15 @@ export class CallsService {
     private readonly chats: ChatsService,
     private readonly push: PushService,
     private readonly blocks: BlocksService,
+    private readonly e2ee: E2eeService,
   ) {}
 
   /** Inicia una llamada en un chat y devuelve el acceso a la sala para quien llama. */
-  async start(userId: string, conversationId: string, kind: CallKind): Promise<CallJoinDto> {
+  async start(userId: string, conversationId: string, kind: CallKind, e2ee?: StartCallInput['e2ee']): Promise<CallJoinDto> {
     // En chats 1 a 1 con bloqueo no se puede llamar (mismo error que al escribir).
     const conversation = await this.chats.requireCanSend(userId, conversationId);
     this.assertAvailable();
+    await this.assertCallEncryption(userId, conversationId, e2ee);
 
     const members = await this.conversations.getMembers([conversationId]);
     const candidates = members.filter((member) => member.user.id !== userId && member.user.status === 'active').map((member) => member.user.id);
@@ -51,7 +54,7 @@ export class CallsService {
     if (invited.length === 0) throw new BadRequestException({ code: 'NO_ONE_TO_CALL', message: 'No hay nadie a quien llamar en este chat' });
 
     const now = new Date();
-    const created = await this.calls.create(conversationId, userId, kind, invited, now);
+    const created = await this.calls.create(conversationId, userId, kind, invited, now, e2ee ?? null);
     if (!created) {
       const open = await this.calls.findOpenByConversation(conversationId);
       throw new ConflictException({ code: 'CALL_IN_PROGRESS', message: 'Ya hay una llamada en curso en este chat', callId: open?.id });
@@ -61,6 +64,21 @@ export class CallsService {
     // Notificación push para quien tenga la app cerrada (sin esperar: no demora la llamada).
     void this.push.notify(invited, { type: 'call', ...this.pushInfo(created, conversation, members) }, { ttl: CALL_RING_SECONDS, urgency: 'high', topic: pushTopic(created) });
     return { call: dto, token: await this.tokenFor(created, userId), url: this.media.url };
+  }
+
+  /**
+   * En un chat de extremo a extremo la llamada TIENE que traer su clave envuelta para exactamente los
+   * miembros actuales (como un mensaje). Así el servidor de llamadas (LiveKit) solo ve audio y video cifrados.
+   */
+  private async assertCallEncryption(userId: string, conversationId: string, e2ee: StartCallInput['e2ee']): Promise<void> {
+    if (!e2ee) {
+      if ((await this.e2ee.activeKeysByMember(conversationId)).complete) {
+        throw new ConflictException({ code: 'E2EE_REQUIRED', message: 'Este chat está cifrado de extremo a extremo. Ingresá tu código de recuperación para llamar.' });
+      }
+      return;
+    }
+    await this.chats.assertEnvelopeKeys(userId, conversationId, e2ee.envelope);
+    if (await this.calls.findById(e2ee.id)) throw new ConflictException({ code: 'CALL_ID_TAKEN', message: 'Esa llamada ya existe' });
   }
 
   /** Atender o sumarse a una llamada en curso. */
@@ -238,6 +256,7 @@ export class CallsService {
       answeredAt: call.answeredAt?.toISOString() ?? null,
       endedAt: call.endedAt?.toISOString() ?? null,
       endReason: call.endReason,
+      e2ee: call.e2ee ?? null,
     };
   }
 

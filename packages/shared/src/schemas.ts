@@ -1,3 +1,4 @@
+import { envelopeSchema } from './e2ee';
 import { z } from 'zod';
 import { isValidNearbyCell } from './nearby';
 import {
@@ -189,7 +190,16 @@ export const updateStatusPrivacySchema = z
   .strict();
 
 /** Iniciar una llamada desde un chat: solo se elige si es de voz o de video. */
-export const startCallSchema = z.object({ kind: z.enum(CALL_KINDS, { message: 'Tipo de llamada inválido' }) }).strict();
+/**
+ * Iniciar una llamada. En un chat de extremo a extremo, el dispositivo genera el id de la llamada y su
+ * clave, y manda la clave envuelta para cada miembro (`e2ee`): el servidor de llamadas nunca la conoce.
+ */
+export const startCallSchema = z
+  .object({
+    kind: z.enum(CALL_KINDS, { message: 'Tipo de llamada inválido' }),
+    e2ee: z.object({ id: z.string().uuid(), envelope: envelopeSchema }).strict().optional(),
+  })
+  .strict();
 
 /** Suscripción Web Push que entrega el navegador (`PushSubscription.toJSON()`). */
 export const pushSubscriptionSchema = z

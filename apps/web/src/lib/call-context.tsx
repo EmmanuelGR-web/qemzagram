@@ -1,10 +1,12 @@
 'use client';
 
-import type { CallDto, CallJoinDto, CallKind } from '@qemzagram/shared';
-import { Room, RoomEvent, Track, type LocalVideoTrack } from 'livekit-client';
+import { openCallKey, sealCallKey, type CallDto, type CallJoinDto, type CallKind, type ConversationKeysDto, type StartCallInput } from '@qemzagram/shared';
+import { ExternalE2EEKeyProvider, isE2EESupported, Room, RoomEvent, Track, type LocalVideoTrack } from 'livekit-client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, errorMessage } from './api';
+import { api, errorMessage, UserFacingError } from './api';
 import { useAuth } from './auth-context';
+import { useE2ee } from './e2ee-context';
+import { e2eeLockedError } from './e2ee-messages';
 import { useRealtimeEvent } from './realtime-context';
 
 /** Si en una llamada 1 a 1 la otra persona se cae y no vuelve en este tiempo, se corta. */
@@ -13,7 +15,13 @@ const PEER_LOST_MS = 15_000;
 export interface ActiveCall {
   call: CallDto;
   room: Room;
+  /** Cifrada de extremo a extremo: el servidor de medios solo ve audio y video cifrados. */
+  encrypted: boolean;
+  /** Worker que cifra y descifra cada cuadro (se apaga al cortar). */
+  worker: Worker | null;
 }
+
+const UNSUPPORTED = 'Tu navegador no admite llamadas cifradas de extremo a extremo. Probá con Chrome, Edge, Firefox o Safari actualizados.';
 
 interface CallState {
   /** Llamada entrante que todavía no atendiste ni rechazaste. */
@@ -46,6 +54,7 @@ const CallContext = createContext<CallState | null>(null);
  */
 export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { device, keysById } = useE2ee();
   const [incoming, setIncoming] = useState<CallDto | null>(null);
   const [active, setActive] = useState<ActiveCall | null>(null);
   const [openCalls, setOpenCalls] = useState<CallDto[]>([]);
@@ -74,7 +83,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     activeRef.current = null;
     setActive(null);
     setAudioBlocked(false);
-    if (current) void current.room.disconnect();
+    if (current) {
+      void current.room.disconnect().finally(() => current.worker?.terminate());
+    }
   }, []);
 
   // Al abrir la app: ¿hay una llamada sonando para mí?
@@ -107,10 +118,65 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  /**
+   * Abre la clave de una llamada cifrada con la clave de ESTE dispositivo. La clave de quien llama se busca
+   * por id y tiene que ser de esa persona (si no, el servidor podría hacerse pasar por otra).
+   */
+  const openKey = useCallback(
+    async (call: CallDto): Promise<Uint8Array | null> => {
+      if (!call.e2ee) return null;
+      if (!isE2EESupported()) throw new UserFacingError(UNSUPPORTED);
+      if (!device) throw e2eeLockedError();
+      const senderKey = (await keysById([call.e2ee.sk])).get(call.e2ee.sk);
+      if (!senderKey || senderKey.userId !== call.startedBy) throw new UserFacingError('No pudimos verificar quién inició esta llamada.');
+      try {
+        return await openCallKey(
+          call.e2ee,
+          { conversationId: call.conversationId, objectId: call.id, senderId: call.startedBy },
+          { userId: device.userId, keyId: device.keyId, privateKey: device.privateKey },
+          senderKey.publicKey,
+        );
+      } catch {
+        throw new UserFacingError('No pudimos abrir la clave de esta llamada cifrada.');
+      }
+    },
+    [device, keysById],
+  );
+
+  /** Si TODOS en el chat activaron el cifrado, la llamada nace cifrada: id y clave se generan acá. */
+  const planCall = useCallback(
+    async (conversationId: string, kind: CallKind): Promise<{ body: StartCallInput; key: Uint8Array | null }> => {
+      const keys = await api<ConversationKeysDto>(`/e2ee/conversations/${conversationId}/keys`);
+      if (!keys.members.every((member) => member.key)) return { body: { kind }, key: null };
+      const mine = keys.members.find((member) => member.userId === device?.userId);
+      if (!device || mine?.key?.id !== device.keyId) throw e2eeLockedError();
+      if (!isE2EESupported()) throw new UserFacingError(UNSUPPORTED);
+      const id = crypto.randomUUID();
+      const recipients = keys.members.flatMap((member) => (member.key ? [{ userId: member.userId, keyId: member.key.id, publicJwk: member.key.publicKey }] : []));
+      const sealed = await sealCallKey({ conversationId, objectId: id, senderId: device.userId }, device, recipients);
+      return { body: { kind, e2ee: { id, envelope: sealed.envelope } }, key: sealed.key };
+    },
+    [device],
+  );
+
   /** Conecta a la sala con el token recibido y enciende micrófono (y cámara en videollamadas). */
   const connect = useCallback(
-    async (join: CallJoinDto) => {
-      const room = new Room({ adaptiveStream: true, dynacast: true, stopLocalTrackOnUnpublish: true });
+    async (join: CallJoinDto, callKey: Uint8Array | null) => {
+      let worker: Worker | null = null;
+      let keyProvider: ExternalE2EEKeyProvider | null = null;
+      if (callKey) {
+        // Cifrado de extremo a extremo de LiveKit: cada cuadro de audio y video se cifra en un worker con la clave de la llamada.
+        keyProvider = new ExternalE2EEKeyProvider();
+        await keyProvider.setKey(new Uint8Array(callKey).buffer);
+        worker = new Worker(new URL('livekit-client/e2ee-worker', import.meta.url));
+      }
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        stopLocalTrackOnUnpublish: true,
+        ...(keyProvider && worker ? { encryption: { keyProvider, worker } } : {}),
+      });
+      if (keyProvider) await room.setE2EEEnabled(true);
       const refresh = () => setRevision((value) => value + 1);
       let peerLostTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -135,6 +201,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         .on(RoomEvent.ActiveSpeakersChanged, refresh)
         .on(RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio))
         .on(RoomEvent.MediaDevicesError, () => setError('No pudimos usar el micrófono o la cámara. Revisá los permisos del navegador.'))
+        .on(RoomEvent.EncryptionError, () => setError('Hubo un problema con el cifrado de la llamada. Si no se escucha, cortá y volvé a llamar.'))
         .on(RoomEvent.Disconnected, () => {
           if (peerLostTimer) clearTimeout(peerLostTimer);
           // Se cortó la conexión con el servidor de medios: se avisa a la API que salimos.
@@ -142,7 +209,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         });
 
       track(join.call);
-      const session = { call: join.call, room };
+      const session: ActiveCall = { call: join.call, room, encrypted: Boolean(callKey), worker };
       activeRef.current = session;
       setActive(session);
       try {
@@ -184,19 +251,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
     (conversationId: string, kind: CallKind) =>
       guard(async () => {
         if (activeRef.current) throw new Error('Ya estás en una llamada');
-        await connect(await api<CallJoinDto>(`/chats/${conversationId}/calls`, { body: { kind } }));
+        const planned = await planCall(conversationId, kind);
+        await connect(await api<CallJoinDto>(`/chats/${conversationId}/calls`, { body: planned.body }), planned.key);
       }),
-    [guard, connect],
+    [guard, connect, planCall],
   );
 
   const accept = useCallback(
     (call: CallDto) =>
       guard(async () => {
+        // La clave se abre ANTES de atender: si este dispositivo no puede, ni siquiera se entra a la sala.
+        const callKey = await openKey(call);
         if (activeRef.current) await leaveCall(); // atender otra llamada corta la actual
         setIncoming(null);
-        await connect(await api<CallJoinDto>(`/calls/${call.id}/join`, { method: 'POST' }));
+        await connect(await api<CallJoinDto>(`/calls/${call.id}/join`, { method: 'POST' }), callKey);
       }),
-    [guard, connect, leaveCall],
+    [guard, connect, leaveCall, openKey],
   );
 
   const decline = useCallback(

@@ -212,6 +212,11 @@ export interface CallDto {
   answeredAt: string | null;
   endedAt: string | null;
   endReason: CallEndReason | null;
+  /**
+   * Llamada cifrada de extremo a extremo: la clave de la llamada envuelta para cada miembro (la abre cada
+   * dispositivo). null = llamada cifrada solo en tránsito (el servidor de medios podría ver el contenido).
+   */
+  e2ee: E2eeEnvelope | null;
 }
 
 /** Para entrar a la sala de medios: token de vida corta y dirección del servidor de llamadas. */

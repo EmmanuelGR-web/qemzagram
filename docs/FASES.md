@@ -55,9 +55,15 @@ Cuentas con correo verificado y tag, contraseña segura, recuperación, perfil c
 - ✅ ClamAV ya era obligatorio en producción desde la Fase 2.
 - ⏭️ **WAF** y **prueba de penetración externa**: se contratan al desplegar (no son código del repositorio).
 
-### 🔜 7B — Cifrado de extremo a extremo (E2EE)
-- Primitivas estándar de WebCrypto (ECDH P-256 + HKDF + AES-GCM): una clave por dispositivo y una clave por mensaje, envuelta para cada dispositivo de los miembros. Ni el servidor ni soporte podrán leer los mensajes.
-- Decisiones pendientes: denuncias (el dispositivo de quien denuncia aporta el contenido con una prueba de autenticidad), adjuntos (el servidor ya no puede escanearlos ni quitarles metadatos: pasa al dispositivo), historial en dispositivos nuevos (copia de seguridad cifrada de las claves) y llamadas E2EE en LiveKit.
+### ✅ 7B — Cifrado de extremo a extremo (E2EE)
+- ✅ **Claves por cuenta** con primitivas estándar de WebCrypto (ECDH P-256 + HKDF-SHA-256 + AES-256-GCM). La clave privada vive en el dispositivo (IndexedDB, **no exportable**); el servidor guarda la pública y una **copia cifrada con el código de recuperación** (32 caracteres, 160 bits, PBKDF2) que nunca conoce.
+- ✅ **Dispositivo nuevo:** se ingresa el código y se recupera la clave (y con ella el historial cifrado). Si se pierde, se generan claves nuevas con la contraseña: el historial cifrado anterior se pierde y los contactos ven que cambió el **código de seguridad**.
+- ✅ **Mensajes y stickers del pack** cifrados en el navegador con una clave por mensaje envuelta para cada miembro. Un chat es de extremo a extremo cuando **todos** sus miembros activaron el cifrado; desde ese momento el servidor **rechaza** mensajes legibles.
+- ✅ **Denuncias verificables con franqueo** (*message franking*): soporte recibe solo lo que revela quien denuncia y el servidor comprueba que es auténtico (nadie lo inventó ni lo editó).
+- ✅ **Adjuntos cifrados** (fotos, videos, notas de voz, documentos, stickers propios), con **limpieza de metadatos en el dispositivo** (fotos recodificadas en canvas; videos MP4/MOV sin ubicación ni fechas; documentos con lista cerrada y verificación del formato). La copia que llega a soporte en una denuncia sí pasa por el antivirus.
+- ✅ **Llamadas cifradas de extremo a extremo** con el cifrado por cuadro de LiveKit: la clave de la llamada se envuelve para cada miembro; el servidor de medios solo ve audio y video cifrados.
+- ✅ **Código de seguridad** de cada miembro (en la información del chat) y **aviso cuando cambia**.
+- Los mensajes anteriores a la activación siguen con el cifrado del servidor. Los estados de 24 h no son E2EE (se publican para toda la agenda).
 
 ## Despliegue y operación (en paralelo)
 - Integración continua (tests + `npm audit` en cada cambio), Dependabot.

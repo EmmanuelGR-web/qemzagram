@@ -309,6 +309,8 @@ export const calls = pgTable(
     answeredAt: ts('answered_at'),
     endedAt: ts('ended_at'),
     endReason: callEndReasonEnum('end_reason'),
+    /** Clave de la llamada envuelta para cada miembro (cifrado de extremo a extremo de LiveKit). */
+    e2ee: jsonb('e2ee').$type<E2eeEnvelope>(),
   },
   (table) => [
     index('calls_conversation_idx').on(table.conversationId, table.createdAt),

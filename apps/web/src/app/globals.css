@@ -659,6 +659,7 @@ li.support-item { cursor: default; }
 .e2ee-badge svg, .e2ee-note svg { width: 14px; height: 14px; }
 .e2ee-note { display: flex; gap: 0.4rem; align-items: flex-start; }
 .e2ee-note svg { flex: none; margin-top: 0.15rem; color: var(--red-600); }
+.call-e2ee { opacity: 0.85; font-size: 0.75rem; }
 .recovery-code { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1.05rem; letter-spacing: 0.06em; text-align: center; background: var(--surface-2); border-radius: 10px; padding: 0.8rem; overflow-wrap: anywhere; user-select: all; }
 .safety-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.05em; overflow-wrap: anywhere; }
 .mfa-codes li { background: var(--surface-2); border-radius: 8px; padding: 0.4rem 0.6rem; text-align: center; }
